@@ -27,9 +27,12 @@ body {
   color: var(--color-paper);
 }
 
-:focus-visible {
-  outline: 1px solid var(--color-ink);
-  outline-offset: 3px;
+/* In the base layer so components (e.g. underlined fields) can opt out. */
+@layer base {
+  :focus-visible {
+    outline: 1px solid var(--color-ink);
+    outline-offset: 3px;
+  }
 }
 
 @layer components {
