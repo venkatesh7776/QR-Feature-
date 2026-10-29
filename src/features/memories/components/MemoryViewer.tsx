@@ -1,11 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { react } from "../lib/api";
+import { useEffect, useRef } from "react";
 import { formatTime } from "../lib/media";
-import { QUICK_REACTIONS } from "../lib/emoji";
 import type { Memory } from "../lib/types";
-import { EmojiPicker } from "./EmojiPicker";
 import { CloseButton } from "./Modal";
 import { VoicePlayer } from "./VoicePlayer";
 
@@ -14,17 +11,13 @@ export function MemoryViewer({
   index,
   onIndexChange,
   onClose,
-  onUpdate,
 }: {
   memories: Memory[];
   index: number;
   onIndexChange: (i: number) => void;
   onClose: () => void;
-  onUpdate: (m: Memory) => void;
 }) {
   const memory = memories[index];
-  const [pending, setPending] = useState<string>();
-  const [picking, setPicking] = useState(false);
   const touchX = useRef<number | undefined>(undefined);
   const prev = index > 0 ? () => onIndexChange(index - 1) : undefined;
   const next = index < memories.length - 1 ? () => onIndexChange(index + 1) : undefined;
@@ -44,15 +37,7 @@ export function MemoryViewer({
     };
   });
 
-  async function addReaction(emoji: string) {
-    setPending(emoji);
-    try {
-      onUpdate(await react(memory.id, emoji));
-    } finally {
-      setPending(undefined);
-    }
-  }
-
+  const reactions = givenReactions(memory);
   const from = memory.source === "couple" ? "Added by you" : memory.guestName ? `From ${memory.guestName}` : "From a guest";
 
   return (
@@ -105,61 +90,38 @@ export function MemoryViewer({
             </div>
           )}
 
-          <div className="mt-10 border-t border-line pt-6">
-            <p className="eyebrow">Reactions</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {reactionList(memory).map(([emoji, count]) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  disabled={pending !== undefined}
-                  onClick={() => addReaction(emoji)}
-                  aria-label={`React ${emoji}, ${count} so far`}
-                  className={`flex h-10 items-center gap-1.5 rounded-full px-3 text-lg transition active:scale-95 ${
-                    count ? "bg-ink/[0.06] ring-1 ring-ink" : "opacity-60 ring-1 ring-line hover:opacity-100"
-                  }`}
-                >
-                  <span>{emoji}</span>
-                  {count > 0 && <span className="text-xs tabular-nums">{count}</span>}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setPicking(true)}
-                aria-label="More emoji"
-                className="grid h-10 w-10 place-items-center rounded-full border border-dashed border-faint text-lg text-muted hover:border-ink hover:text-ink"
-              >
-                +
-              </button>
+          {reactions.length > 0 && (
+            <div className="mt-10 border-t border-line pt-6">
+              <p className="eyebrow">Reactions</p>
+              <ul className="mt-4 flex flex-wrap gap-2">
+                {reactions.map(([emoji, count]) => (
+                  <li
+                    key={emoji}
+                    aria-label={`${emoji} ${count}`}
+                    className="flex h-10 items-center gap-1.5 rounded-full px-3 text-lg ring-1 ring-line"
+                  >
+                    <span>{emoji}</span>
+                    <span className="text-xs text-muted tabular-nums">{count}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <p className="mt-3 text-xs text-faint">Tap to add your own reaction.</p>
-          </div>
+          )}
 
           <a href={memory.photoUrl} download className="link mt-10 inline-block text-muted">
             Download original
           </a>
         </div>
       </aside>
-      <EmojiPicker
-        open={picking}
-        selected={[]}
-        onPick={(emoji) => {
-          setPicking(false);
-          addReaction(emoji);
-        }}
-        onClose={() => setPicking(false)}
-      />
     </div>
   );
 }
 
-/** Reactions it already has (most first), then the quick ones it doesn't. */
-function reactionList(memory: Memory): [string, number][] {
-  const have = Object.entries(memory.reactions)
+/** Only the reactions people actually gave, most popular first. */
+function givenReactions(memory: Memory): [string, number][] {
+  return Object.entries(memory.reactions)
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1]);
-  const rest = QUICK_REACTIONS.filter((e) => !memory.reactions[e]).map((e): [string, number] => [e, 0]);
-  return [...have, ...rest];
 }
 
 function NavButton({

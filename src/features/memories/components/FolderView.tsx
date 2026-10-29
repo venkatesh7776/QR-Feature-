@@ -167,7 +167,6 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
           index={openIndex}
           onIndexChange={(i) => setOpenId(memories[i].id)}
           onClose={() => setOpenId(undefined)}
-          onUpdate={(updated) => setMemories((all) => all.map((m) => (m.id === updated.id ? updated : m)))}
         />
       )}
     </main>
