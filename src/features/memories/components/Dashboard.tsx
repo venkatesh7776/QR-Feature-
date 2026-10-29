@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createFolder, fetchFolders } from "../lib/api";
 import { formatDate } from "../lib/media";
-import { EVENT_TYPE_SUGGESTIONS, type FolderSummary } from "../lib/types";
+import type { FolderSummary } from "../lib/types";
 import { CloseButton, Modal } from "./Modal";
 
 export function Dashboard() {
@@ -110,7 +110,6 @@ function CreateFolderDialog({ open, onClose }: { open: boolean; onClose: () => v
   const router = useRouter();
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
-  const [type, setType] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -120,7 +119,7 @@ function CreateFolderDialog({ open, onClose }: { open: boolean; onClose: () => v
     setSaving(true);
     setError(undefined);
     try {
-      const folder = await createFolder({ name, date: date || undefined, type: type.trim() || undefined });
+      const folder = await createFolder({ name, date: date || undefined });
       router.push(`/memories/${folder.id}?created=1`);
     } catch (err) {
       setError((err as Error).message);
@@ -170,32 +169,6 @@ function CreateFolderDialog({ open, onClose }: { open: boolean; onClose: () => v
           <span className="eyebrow">Date (optional)</span>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field mt-1" />
         </label>
-
-        <label className="mt-8 block">
-          <span className="eyebrow">Event type (optional)</span>
-          <input
-            maxLength={40}
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            placeholder="e.g. Ceremony, Cocktail night"
-            className="field mt-1"
-          />
-        </label>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {EVENT_TYPE_SUGGESTIONS.map((t) => (
-            <button
-              key={t}
-              type="button"
-              aria-pressed={type === t}
-              onClick={() => setType(t)}
-              className={`border px-2.5 py-1 text-xs transition-colors ${
-                type === t ? "border-ink text-ink" : "border-line text-muted hover:border-ink hover:text-ink"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
 
         {error && <p className="mt-6 text-sm text-muted">{error}</p>}
 

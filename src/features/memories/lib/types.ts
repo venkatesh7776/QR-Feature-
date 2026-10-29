@@ -1,6 +1,3 @@
-/** Suggestions only: couples can type any event type. */
-export const EVENT_TYPE_SUGGESTIONS = ["Mehendi", "Haldi", "Sangeet", "Ceremony", "Reception"];
-
 export interface Folder {
   id: string;
   name: string;
