@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #ffffff;
+  --color-ink: #111111;
+  --color-muted: #6b6b6b;
+  --color-faint: #a3a3a3;
+  --color-line: #e6e6e6;
+  --color-wash: #f6f6f5;
+  --font-serif: var(--font-instrument-serif), "Times New Roman", serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+:focus-visible {
+  outline: 1px solid var(--color-ink);
+  outline-offset: 3px;
+}
+
+@layer components {
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.18em] text-muted;
+  }
+  .btn {
+    @apply inline-flex h-11 items-center justify-center gap-2 border border-ink bg-ink px-5 text-sm text-paper transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-ghost {
+    @apply inline-flex h-11 items-center justify-center gap-2 border border-line bg-paper px-5 text-sm text-ink transition-colors hover:border-ink disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .link {
+    @apply text-sm underline decoration-line underline-offset-4 transition-colors hover:decoration-ink;
+  }
+  .field {
+    @apply block w-full border-0 border-b border-line bg-transparent px-0 py-2.5 text-[15px] outline-none transition-colors placeholder:text-faint focus:border-ink focus-visible:outline-none;
+  }
+}
