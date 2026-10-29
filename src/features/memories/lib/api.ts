@@ -37,7 +37,67 @@ export interface DraftMemory {
   voiceNote?: Blob;
 }
 
-export function submitMemories(
+/**
+ * Two steps: ask the server how to upload, then either send everything as one
+ * multipart request (local backend) or upload each file straight to storage
+ * and post only the metadata (Supabase; avoids serverless body-size limits).
+ */
+export async function submitMemories(
+  folderId: string,
+  source: "guest" | "couple",
+  items: DraftMemory[],
+  guestName?: string,
+) {
+  const plan = await fetch(`${BASE}/folders/${folderId}/uploads`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      files: items.map((i) => ({ photo: i.photo.type || "image/jpeg", voice: i.voiceNote?.type })),
+    }),
+  }).then((r) => json<{ mode: "inline" } | { mode: "direct"; uploads: UploadPlan[] }>(r));
+
+  if (plan.mode === "inline") return submitInline(folderId, source, items, guestName);
+
+  await Promise.all(
+    plan.uploads.flatMap((u, i) => [
+      putFile(u.photo.url, items[i].photo),
+      ...(u.voice && items[i].voiceNote ? [putFile(u.voice.url, items[i].voiceNote!)] : []),
+    ]),
+  );
+
+  return fetch(`${BASE}/folders/${folderId}/memories`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      source,
+      guestName,
+      items: plan.uploads.map((u, i) => ({
+        id: u.id,
+        photoName: u.photo.name,
+        voiceName: u.voice?.name,
+        message: items[i].message,
+        reactions: items[i].reactions,
+      })),
+    }),
+  }).then((r) => json<{ memories: Memory[] }>(r));
+}
+
+interface UploadPlan {
+  id: string;
+  photo: { name: string; url: string };
+  voice?: { name: string; url: string };
+}
+
+async function putFile(url: string, blob: Blob) {
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": blob.type || "image/jpeg", "x-upsert": "false" },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+}
+
+function submitInline(
   folderId: string,
   source: "guest" | "couple",
   items: DraftMemory[],

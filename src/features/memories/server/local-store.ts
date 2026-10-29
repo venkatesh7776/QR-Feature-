@@ -2,7 +2,7 @@ import "server-only";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { Folder, FolderSummary, Memory } from "../lib/types";
-import { contentTypeFor, fileUrl, isSafeFileRef, shortId, storedName, type NewMemory } from "./shared";
+import { contentTypeFor, fileUrl, isSafeFileRef, shortId, storedName, type NewMemory, type StoredFile } from "./shared";
 
 /**
  * Local fallback persistence, used when Supabase isn't configured: one JSON
@@ -135,12 +135,12 @@ export function addReaction(memoryId: string, emoji: string) {
 async function saveFile(folderId: string, base: string, file: File) {
   const dir = path.join(UPLOAD_DIR, folderId);
   await fs.mkdir(dir, { recursive: true });
-  const name = storedName(base, file);
+  const name = storedName(base, file.type);
   await fs.writeFile(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
   return fileUrl(folderId, name);
 }
 
-export async function readFile(folderId: string, name: string) {
+export async function getFile(folderId: string, name: string): Promise<StoredFile | undefined> {
   if (!isSafeFileRef(folderId, name)) return undefined;
   try {
     const data = await fs.readFile(path.join(UPLOAD_DIR, folderId, name));

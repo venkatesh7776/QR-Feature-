@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Folder, FolderSummary, Memory, Reactions } from "../lib/types";
-import { contentTypeFor, fileUrl, isSafeFileRef, shortId, storedName, type NewMemory } from "./shared";
+import { contentTypeFor, fileUrl, isSafeFileRef, shortId, storedName, type NewMemory, type StoredFile } from "./shared";
 
 /**
  * Permanent persistence: records in Supabase Postgres, photos and voice notes
@@ -162,12 +162,12 @@ export async function addMemories(folderId: string, items: NewMemory[]) {
           id,
           folder_id: folderId,
           source: item.source,
-          photo_name: await upload(storedName(`${id}-photo`, item.photo), item.photo),
+          photo_name: await upload(storedName(`${id}-photo`, item.photo.type), item.photo),
           message: item.message?.trim() || null,
           guest_name: item.guestName?.trim() || null,
           reactions: item.reactions ?? {},
           voice_name: item.voiceNote
-            ? await upload(storedName(`${id}-voice`, item.voiceNote), item.voiceNote)
+            ? await upload(storedName(`${id}-voice`, item.voiceNote.type), item.voiceNote)
             : null,
           // Keep submission order stable within one batch.
           created_at: new Date(now + i).toISOString(),
@@ -194,11 +194,99 @@ export async function addReaction(memoryId: string, emoji: string) {
   return toMemory(row);
 }
 
+// ---- Direct browser uploads -------------------------------------------------
+// Serverless hosts cap request bodies (~4.5 MB on Vercel), so in production the
+// browser uploads each file straight to Storage with a one-time signed URL and
+// then posts only the small JSON metadata.
+
+export interface UploadPlan {
+  id: string;
+  photo: { name: string; url: string };
+  voice?: { name: string; url: string };
+}
+
+export async function planUploads(
+  folderId: string,
+  files: { photo: string; voice?: string }[],
+): Promise<UploadPlan[]> {
+  const sign = async (name: string) => {
+    const { signedUrl } = check(
+      await db().storage.from(BUCKET).createSignedUploadUrl(`${folderId}/${name}`),
+    );
+    return { name, url: signedUrl };
+  };
+  return Promise.all(
+    files.map(async (f) => {
+      const id = shortId();
+      return {
+        id,
+        photo: await sign(storedName(`${id}-photo`, f.photo)),
+        voice: f.voice ? await sign(storedName(`${id}-voice`, f.voice)) : undefined,
+      };
+    }),
+  );
+}
+
+export interface UploadedMemory {
+  id: string;
+  photoName: string;
+  voiceName?: string;
+  message?: string;
+  reactions?: Reactions;
+}
+
+export async function addUploadedMemories(
+  folderId: string,
+  source: Memory["source"],
+  guestName: string | undefined,
+  items: UploadedMemory[],
+) {
+  if (!(await getFolder(folderId))) throw new Error("Folder not found");
+
+  // Only accept files we signed for this memory, and that actually arrived.
+  for (const item of items) {
+    const expected = [[item.photoName, "photo"], ...(item.voiceName ? [[item.voiceName, "voice"]] : [])];
+    for (const [name, kind] of expected) {
+      if (!name.startsWith(`${item.id}-${kind}.`) || !isSafeFileRef(folderId, name)) {
+        throw new Error("Invalid upload reference");
+      }
+      const { data: found } = await db().storage.from(BUCKET).exists(`${folderId}/${name}`);
+      if (!found) throw new Error("An upload didn't finish. Please try again.");
+    }
+  }
+
+  const now = Date.now();
+  const saved = check<MemoryRow[]>(
+    await db()
+      .from("memories")
+      .insert(
+        items.map((item, i) => ({
+          id: item.id,
+          folder_id: folderId,
+          source,
+          photo_name: item.photoName,
+          message: item.message?.trim() || null,
+          guest_name: guestName?.trim() || null,
+          reactions: item.reactions ?? {},
+          voice_name: item.voiceName ?? null,
+          created_at: new Date(now + i).toISOString(),
+        })),
+      )
+      .select(),
+  );
+  return saved.map(toMemory);
+}
+
 // ---- Files -------------------------------------------------------------------
 
-export async function readFile(folderId: string, name: string) {
+const SIGNED_URL_SECONDS = 60 * 60;
+
+/** Sends the browser to a short-lived signed URL instead of proxying bytes. */
+export async function getFile(folderId: string, name: string): Promise<StoredFile | undefined> {
   if (!isSafeFileRef(folderId, name)) return undefined;
-  const { data, error } = await db().storage.from(BUCKET).download(`${folderId}/${name}`);
+  const { data, error } = await db()
+    .storage.from(BUCKET)
+    .createSignedUrl(`${folderId}/${name}`, SIGNED_URL_SECONDS);
   if (error || !data) return undefined;
-  return { data: Buffer.from(await data.arrayBuffer()), contentType: contentTypeFor(name) };
+  return { redirect: data.signedUrl };
 }

@@ -38,9 +38,12 @@ const CONTENT_TYPES = Object.fromEntries(
 );
 
 /** Stored file name for an upload, e.g. "a1b2c3-photo.jpg". */
-export function storedName(base: string, file: File) {
-  return `${base}.${EXTENSIONS[file.type.split(";")[0]] ?? "bin"}`;
+export function storedName(base: string, contentType: string) {
+  return `${base}.${EXTENSIONS[contentType.split(";")[0]] ?? "bin"}`;
 }
+
+/** A stored file: bytes we serve ourselves, or a URL to send the browser to. */
+export type StoredFile = { data: Buffer; contentType: string } | { redirect: string };
 
 export function contentTypeFor(name: string) {
   return CONTENT_TYPES[name.split(".").pop()!] ?? "application/octet-stream";

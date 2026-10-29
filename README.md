@@ -35,6 +35,26 @@ reach the app while the tunnel runs; stop it with Ctrl+C.
 5. Back in the folder (it refreshes every 10 s and on focus), the photos are there. Click one to see the note, play the voice note and view or add reactions.
 6. Click **Upload photos** to add the couple's own photos. They show up in the same gallery.
 
+## Deployment (Vercel)
+
+Live at **https://wedding-memories-iota.vercel.app** (project `wedding-memories`).
+
+```bash
+vercel env add SUPABASE_URL production
+vercel env add SUPABASE_SERVICE_ROLE_KEY production --sensitive
+vercel deploy --prod
+```
+
+QR codes made on the live site point to the live site automatically. Vercel
+installs dependencies from `package-lock.json`, and `.vercelignore` keeps
+`.env.local` and `.data/` out of uploads.
+
+Vercel limits request bodies to about 4.5 MB, so with Supabase the browser
+uploads each photo and voice note **directly to Storage** using one-time signed
+URLs (`POST /api/memories/folders/[id]/uploads`), then posts only the metadata.
+Photos are served through `/api/memories/files/...`, which redirects to a
+short-lived signed Storage URL.
+
 ## Routes
 
 | Route | Who | Purpose |
@@ -72,10 +92,6 @@ Everything lives in `src/features/memories/` so it can be moved into the main we
 machine running the server. That's fine for a quick demo, but it's one disk
 with no backups.
 
-**Still required for a real event:** deploy the app (e.g. Vercel with the same
-env vars) so guests can upload when your laptop is off, and set
-`SHARE_ORIGIN=https://your-site.com` so QR codes point there. Until then the
-app, and `npm run share` for an https link, must be running on this machine.
 On Supabase's free plan, projects pause after about a week without activity.
 The data is kept, and you restore the project from the dashboard.
 
