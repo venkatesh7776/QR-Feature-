@@ -4,7 +4,15 @@ import type { Folder, FolderSummary, Memory } from "./types";
 
 const BASE = "/api/memories";
 
+/** The couple's session ended (or never started): back to the passcode screen. */
+function toLogin(res: Response) {
+  if (res.status !== 401 || typeof window === "undefined") return;
+  const next = window.location.pathname + window.location.search;
+  window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+}
+
 async function json<T>(res: Response): Promise<T> {
+  toLogin(res);
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `Request failed (${res.status})`);
@@ -31,6 +39,7 @@ export function createFolder(input: { name: string; date?: string; type?: string
 }
 
 async function done(res: Response) {
+  toLogin(res);
   if (res.ok) return;
   const body = (await res.json().catch(() => ({}))) as { error?: string };
   throw new Error(body.error ?? `Request failed (${res.status})`);

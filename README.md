@@ -69,6 +69,15 @@ stationery-style QR card with the Ganesha and the couple's names.
 - `src/features/memories/components/art/Ornaments.tsx` has the ornaments
   (lotus divider, kolam, arch edge, mandala, zari band, Ganesha).
 
+## Couple passcode
+
+The couple's pages (albums, album pages, QR cards) and the APIs that list,
+create or delete albums need a passcode; guests scanning a QR code never do.
+Set it with `COUPLE_PASSCODE` (on Vercel: `vercel env add COUPLE_PASSCODE
+production --sensitive`). Changing it signs every device out. Without it, the
+lock is off, which is handy for local development. Entering the passcode keeps
+a device signed in for 30 days; **Lock** in the albums header signs it out.
+
 ## Routes
 
 | Route | Who | Purpose |

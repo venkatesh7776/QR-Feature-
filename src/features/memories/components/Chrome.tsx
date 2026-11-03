@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LockButton } from "./CoupleLogin";
 import { wedding } from "../lib/wedding";
 import { ArchEdge, Ganesha, KolamTexture, LotusDivider } from "./art/Ornaments";
 
@@ -18,14 +19,17 @@ export function WeddingHeader({
     <header className="gutter relative z-10 bg-burgundy pt-6 pb-[clamp(4rem,3rem+4vw,6rem)] text-ivory">
       <KolamTexture className="opacity-[0.06]" id="kolam-header" />
       <div className="container-wide relative">
-        {back ? (
-          <Link href={back.href} className="t-label inline-flex min-h-11 items-center gap-2 text-[10px] text-gold-muted transition-colors hover:text-gold">
-            <ArrowLeft />
-            {back.label}
-          </Link>
-        ) : (
-          <div className="min-h-11" />
-        )}
+        <div className="flex items-center justify-between">
+          {back ? (
+            <Link href={back.href} className="t-label inline-flex min-h-11 items-center gap-2 text-[10px] text-gold-muted transition-colors hover:text-gold">
+              <ArrowLeft />
+              {back.label}
+            </Link>
+          ) : (
+            <span />
+          )}
+          <LockButton />
+        </div>
         <div className="rise-in mt-6 text-center sm:mt-8">
           <Ganesha className="mb-3 h-12" />
           <p className="font-display text-[15px] text-gold-muted italic">{wedding.invocation}</p>

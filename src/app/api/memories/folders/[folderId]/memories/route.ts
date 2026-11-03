@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireCouple } from "@/features/memories/server/auth";
 import {
   addMemories,
   addUploadedMemories,
@@ -36,11 +37,21 @@ export async function POST(req: Request, ctx: { params: Promise<{ folderId: stri
 
   if (req.headers.get("content-type")?.includes("application/json")) {
     if (!directUploads) return NextResponse.json({ error: "Unsupported" }, { status: 400 });
-    return submitUploaded(folderId, await req.json());
+    const body = await req.json();
+    // Anyone with the QR code may add guest photos; only the couple may add their own.
+    if (body?.source === "couple") {
+      const denied = await requireCouple(req);
+      if (denied) return denied;
+    }
+    return submitUploaded(folderId, body);
   }
 
   const form = await req.formData();
   const source = form.get("source") === "couple" ? "couple" : "guest";
+  if (source === "couple") {
+    const denied = await requireCouple(req);
+    if (denied) return denied;
+  }
   const guestName = text(form.get("guestName"), 60);
   const count = Math.min(Number(form.get("count")) || 0, MAX_ITEMS);
 

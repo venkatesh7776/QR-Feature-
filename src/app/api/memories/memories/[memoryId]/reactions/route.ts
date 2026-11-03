@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+import { requireCouple } from "@/features/memories/server/auth";
 import { addReaction } from "@/features/memories/server/store";
 import { isEmoji } from "@/features/memories/lib/emoji";
 
 export async function POST(req: Request, ctx: { params: Promise<{ memoryId: string }> }) {
+  const denied = await requireCouple(req);
+  if (denied) return denied;
   const { memoryId } = await ctx.params;
   const { emoji } = (await req.json()) as { emoji?: string };
   if (!emoji || !isEmoji(emoji)) {
