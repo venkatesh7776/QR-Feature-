@@ -11,6 +11,9 @@ export const wedding = {
   bride: { name: "Varshitha D. S.", short: "Varshitha" },
   /** The invitation website this app is part of. */
   siteUrl: "https://murali-varshitha-wedding.vercel.app",
+  /** How the website is written on printed cards. */
+  siteLabel: "www.muralivarshitha.com",
+  place: "Mulbagal, Karnataka",
   /** Suggested folder names, in the order the invitation lists the events. */
   events: [
     { name: "Reception", date: "2026-11-18" },

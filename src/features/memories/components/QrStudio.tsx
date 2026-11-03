@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { fetchFolder, fetchShareOrigin, guestPath } from "../lib/api";
-import { formatDate } from "../lib/media";
-import { CARD_THEMES, drawCard, loadCardAssets } from "../lib/qr-card";
+import { formatLongDate } from "../lib/media";
+import { drawCard, loadCardAssets } from "../lib/qr-card";
 import type { Folder } from "../lib/types";
 import { wedding } from "../lib/wedding";
 import { LotusDivider } from "./art/Ornaments";
@@ -12,7 +12,11 @@ import { AlbumBar, SoftNotice } from "./Chrome";
 
 type OriginKind = Awaited<ReturnType<typeof fetchShareOrigin>>["kind"];
 
-const DEFAULT_INSTRUCTION = "Scan to share your photos with us";
+const DEFAULTS = {
+  heading: "Scan the QR Code",
+  tagline: "Share Your Moments",
+  message: "Scan and upload the photos you capture today.",
+};
 
 export function QrStudio({ folderId }: { folderId: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -20,10 +24,11 @@ export function QrStudio({ folderId }: { folderId: string }) {
   const [missing, setMissing] = useState(false);
   const [origin, setOrigin] = useState<{ origin: string; kind: OriginKind }>();
   const [assetsReady, setAssetsReady] = useState(false);
-  const [themeId, setThemeId] = useState(CARD_THEMES[0].id);
-  const [title, setTitle] = useState("");
-  const [subtitle, setSubtitle] = useState("");
-  const [instruction, setInstruction] = useState(DEFAULT_INSTRUCTION);
+  const [event, setEvent] = useState("");
+  const [dateLine, setDateLine] = useState("");
+  const [heading, setHeading] = useState(DEFAULTS.heading);
+  const [tagline, setTagline] = useState(DEFAULTS.tagline);
+  const [message, setMessage] = useState(DEFAULTS.message);
   const [copied, setCopied] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
 
@@ -31,8 +36,8 @@ export function QrStudio({ folderId }: { folderId: string }) {
     fetchFolder(folderId).then(
       ({ folder }) => {
         setFolder(folder);
-        setTitle(folder.name);
-        setSubtitle(formatDate(folder.date));
+        setEvent(folder.name);
+        setDateLine(formatLongDate(folder.date));
       },
       () => setMissing(true),
     );
@@ -41,28 +46,30 @@ export function QrStudio({ folderId }: { folderId: string }) {
   }, [folderId]);
 
   const url = origin ? `${origin.origin}${guestPath(folderId)}` : "";
-  const theme = CARD_THEMES.find((t) => t.id === themeId)!;
 
   useEffect(() => {
     if (!canvas.current || !folder || !url || !assetsReady) return;
-    drawCard(canvas.current, theme, {
+    drawCard(canvas.current, {
       url,
       invocation: wedding.invocation,
-      groom: wedding.groom.name,
-      bride: wedding.bride.name,
-      title: title.trim() || folder.name,
-      subtitle,
-      instruction: instruction.trim() || DEFAULT_INSTRUCTION,
-      footnote: "No app needed · just your camera",
+      groom: wedding.groom.short,
+      bride: wedding.bride.short,
+      event: event.trim() || folder.name,
+      dateLine: dateLine.trim(),
+      heading: heading.trim() || DEFAULTS.heading,
+      tagline: tagline.trim() || DEFAULTS.tagline,
+      message: message.trim() || DEFAULTS.message,
+      site: wedding.siteLabel,
+      footer: `${wedding.groom.name} & ${wedding.bride.name} · ${wedding.place}`,
     });
-  }, [folder, url, assetsReady, theme, title, subtitle, instruction]);
+  }, [folder, url, assetsReady, event, dateLine, heading, tagline, message]);
 
   function download() {
     canvas.current?.toBlob((blob) => {
       if (!blob) return;
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `${slug(title || folder!.name)}-qr-card.png`;
+      a.download = `QR-${slug(event || folder!.name)}.png`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
       setDownloaded(true);
@@ -92,6 +99,14 @@ export function QrStudio({ folderId }: { folderId: string }) {
     );
   }
 
+  const fields: [string, string, (v: string) => void, number, string?][] = [
+    ["Event name", event, setEvent, 40, "font-display text-xl text-maroon"],
+    ["Date line", dateLine, setDateLine, 44],
+    ["Heading", heading, setHeading, 32],
+    ["Tagline", tagline, setTagline, 32],
+    ["Message", message, setMessage, 60],
+  ];
+
   return (
     <>
       <AlbumBar title="QR card" back={{ href: `/memories/${folderId}`, label: folder?.name ?? "Album", short: "Back" }} />
@@ -107,49 +122,23 @@ export function QrStudio({ folderId }: { folderId: string }) {
           </section>
 
           <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-14">
-            <div className="relative flex justify-center overflow-hidden rounded-sm bg-ivory-deep p-6 sm:p-12">
+            <div className="flex justify-center rounded-sm bg-ivory-deep p-5 sm:p-10">
               <canvas
                 ref={canvas}
                 aria-label="QR card preview"
-                className="fade-in aspect-[5/7] w-full max-w-[440px] shadow-[0_24px_50px_-28px_rgba(72,20,31,0.55)]"
+                className="fade-in aspect-[3/4] w-full max-w-[480px] shadow-[0_30px_60px_-30px_rgba(72,20,31,0.6)]"
               />
             </div>
 
             <div className="flex flex-col">
-              <fieldset>
-                <legend className="t-label text-[10px] text-gold">Card style</legend>
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  {CARD_THEMES.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      aria-pressed={t.id === themeId}
-                      onClick={() => setThemeId(t.id)}
-                      className={`rounded-sm border p-2 text-left transition-colors ${t.id === themeId ? "border-maroon" : "border-gold/35 hover:border-gold"}`}
-                    >
-                      <span className="relative block aspect-[5/7] border" style={{ background: t.background, borderColor: t.gold }}>
-                        <span className="absolute inset-[18%_22%_30%] border" style={{ borderColor: t.gold, background: t.qrPanel }} />
-                      </span>
-                      <span className="mt-2 block text-xs text-maroon">{t.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
+              {fields.map(([label, value, set, max, extra]) => (
+                <label key={label} className="mb-6 block">
+                  <span className="t-label text-[10px] text-gold">{label}</span>
+                  <input value={value} maxLength={max} onChange={(e) => set(e.target.value)} className={`field mt-1 ${extra ?? ""}`} />
+                </label>
+              ))}
 
-              <label className="mt-8 block">
-                <span className="t-label text-[10px] text-gold">Event name</span>
-                <input value={title} maxLength={60} onChange={(e) => setTitle(e.target.value)} className="field mt-1 font-display text-xl text-maroon" />
-              </label>
-              <label className="mt-6 block">
-                <span className="t-label text-[10px] text-gold">Date line</span>
-                <input value={subtitle} maxLength={50} placeholder="e.g. 18 November 2026" onChange={(e) => setSubtitle(e.target.value)} className="field mt-1" />
-              </label>
-              <label className="mt-6 block">
-                <span className="t-label text-[10px] text-gold">Invitation line</span>
-                <input value={instruction} maxLength={44} onChange={(e) => setInstruction(e.target.value)} className="field mt-1" />
-              </label>
-
-              <button className="btn btn--gold mt-10" onClick={download} disabled={!folder || !url || !assetsReady}>
+              <button className="btn btn--gold mt-4" onClick={download} disabled={!folder || !url || !assetsReady}>
                 Download QR card (PNG)
               </button>
               {downloaded && (
@@ -199,5 +188,5 @@ function OriginNote({ kind }: { kind: OriginKind }) {
 }
 
 function slug(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "wedding";
+  return s.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") || "wedding";
 }

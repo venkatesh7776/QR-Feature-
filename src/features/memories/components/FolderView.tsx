@@ -128,9 +128,10 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
               </SoftNotice>
             )
           ) : (
-            <ul className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4">
-              {memories.map((m, i) => (
-                <li key={m.id} className="fade-in mb-3 break-inside-avoid sm:mb-4" style={{ animationDelay: `${Math.min(i, 12) * 50}ms` }}>
+            <Masonry
+              items={memories}
+              render={(m, i) => (
+                <div key={m.id} className="fade-in" style={{ animationDelay: `${Math.min(i, 12) * 50}ms` }}>
                   <button
                     type="button"
                     onClick={() => setOpenId(m.id)}
@@ -144,9 +145,9 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
                       <span className="mt-0.5 block text-[11px] text-ivory/80">{credit(m)}</span>
                     </span>
                   </button>
-                </li>
-              ))}
-            </ul>
+                </div>
+              )}
+            />
           )}
         </div>
       </main>
@@ -161,6 +162,39 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
       )}
     </>
   );
+}
+
+/**
+ * Photos dealt across columns left to right (photo 1 in column 1, photo 2 in
+ * column 2, …). CSS columns fill top-to-bottom and leave columns empty when
+ * there are only a few photos; this uses every column at every width.
+ */
+function Masonry<T>({ items, render }: { items: T[]; render: (item: T, index: number) => React.ReactNode }) {
+  const count = useColumnCount();
+  const columns = Array.from({ length: count }, () => [] as [T, number][]);
+  items.forEach((item, i) => columns[i % count].push([item, i]));
+  return (
+    <ul className="flex items-start gap-3 sm:gap-4" role="list">
+      {columns.map((col, c) => (
+        <li key={c} className="flex min-w-0 flex-1 flex-col gap-3 sm:gap-4">
+          {col.map(([item, i]) => render(item, i))}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** 2 columns on phones, 3 on tablets, 4 on desktops. */
+function useColumnCount() {
+  const [count, setCount] = useState(2);
+  useEffect(() => {
+    const queries = [window.matchMedia("(min-width: 1024px)"), window.matchMedia("(min-width: 768px)")];
+    const update = () => setCount(queries[0].matches ? 4 : queries[1].matches ? 3 : 2);
+    update();
+    queries.forEach((q) => q.addEventListener("change", update));
+    return () => queries.forEach((q) => q.removeEventListener("change", update));
+  }, []);
+  return count;
 }
 
 /** Small chips on a tile: a note, a voice note, and the reactions guests gave. */

@@ -32,6 +32,16 @@ export function formatDate(iso?: string) {
   return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(Date.UTC(y, m - 1, d));
 }
 
+/** "Wednesday, 18 November 2026", as printed on the QR cards. */
+export function formatLongDate(iso?: string) {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const when = Date.UTC(y, m - 1, d);
+  const weekday = new Intl.DateTimeFormat("en-IN", { weekday: "long", timeZone: "UTC" }).format(when);
+  return `${weekday}, ${formatDate(iso)}`;
+}
+
 /** "18 Nov, 7:42 pm" in IST, where the wedding happens. */
 export function formatTime(iso: string) {
   return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })

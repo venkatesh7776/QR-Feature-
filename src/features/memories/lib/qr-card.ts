@@ -1,45 +1,53 @@
 import QRCode from "qrcode";
 
 /**
- * The printable QR card, in the invitation's stationery style: ivory paper,
- * fine gold border and zari bands, Ganesha and invocation, the couple's names,
- * the event, and the QR code in a thin gold frame. Drawn on a canvas so the
- * preview and the downloaded PNG are identical.
+ * The printable QR card, recreated from the wedding's QR card template so all
+ * text stays editable and the QR code is placed in the frame automatically:
+ * ivory upper half with floral corners, Ganesha, invocation and names;
+ * burgundy lower half (kolam texture, zari band) holding the QR tile with
+ * gold brackets and "SCAN ME" either side.
+ *
+ * Everything is drawn in the template's own 3600 × 4800 coordinates and
+ * output at 2400 × 3200, which prints sharply at 8 × 10.7 in.
  */
-
-export interface CardTheme {
-  id: string;
-  label: string;
-  background: string;
-  /** Headings and names */
-  ink: string;
-  /** Secondary lines */
-  muted: string;
-  gold: string;
-  /** QR codes stay dark-on-light for reliable scanning, even on dark cards. */
-  qrPanel: string;
-  qrInk: string;
-}
-
-export const CARD_THEMES: CardTheme[] = [
-  { id: "ivory", label: "Ivory", background: "#FAF5EC", ink: "#651E2B", muted: "#6f625b", gold: "#C5A15B", qrPanel: "#FFFDF8", qrInk: "#48141F" },
-  { id: "burgundy", label: "Burgundy", background: "#48141F", ink: "#FAF5EC", muted: "#DCC58E", gold: "#C5A15B", qrPanel: "#FAF5EC", qrInk: "#48141F" },
-  { id: "blush", label: "Blush", background: "#F5E9E4", ink: "#651E2B", muted: "#76625c", gold: "#B8924C", qrPanel: "#FFFDF8", qrInk: "#48141F" },
-];
 
 export interface CardContent {
   url: string;
   invocation: string;
+  /** Short names, e.g. "Murali" and "Varshitha" */
   groom: string;
   bride: string;
-  title: string;
-  subtitle?: string;
-  instruction: string;
-  footnote: string;
+  event: string;
+  /** e.g. "Wednesday, 18 November 2026" */
+  dateLine?: string;
+  heading: string;
+  tagline: string;
+  message: string;
+  site: string;
+  footer: string;
 }
 
-export const CARD_WIDTH = 1200;
-export const CARD_HEIGHT = 1680;
+const T_W = 3600;
+const T_H = 4800;
+const SCALE = 2 / 3;
+export const CARD_WIDTH = T_W * SCALE;
+export const CARD_HEIGHT = T_H * SCALE;
+
+const C = {
+  ivory: "#FAF5EC",
+  ivoryTop: "#FBF6EE",
+  burgundy: "#48141F",
+  burgundyDeep: "#3F111A",
+  burgundyGlow: "#541826",
+  maroon: "#651E2B",
+  gold: "#C5A15B",
+  goldMuted: "#DCC58E",
+  goldText: "#A8864B",
+};
+
+/** Where the burgundy half begins, and the QR tile (template coordinates). */
+const SPLIT = 2553;
+const TILE = { x: 1134, y: 2055, size: 1332, r: 70 };
 
 interface Fonts {
   display: string;
@@ -54,252 +62,368 @@ function readFonts(): Fonts {
   };
 }
 
-let ganesha: Promise<HTMLImageElement | null> | undefined;
-function loadGanesha() {
-  ganesha ??= new Promise((resolve) => {
+const images: Record<string, Promise<HTMLImageElement | null>> = {};
+function loadImage(src: string) {
+  images[src] ??= new Promise((resolve) => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
-    img.src = "/images/ganesha.webp";
+    img.src = src;
   });
-  return ganesha;
+  return images[src];
 }
 
-/** Fonts and the Ganesha artwork must be ready before drawing. */
+const ART = {
+  ganesha: "/images/ganesha.webp",
+  floralLeft: "/images/qr-card/floral-left.png",
+  floralRight: "/images/qr-card/floral-right.png",
+};
+
+/** Fonts and artwork must be ready before drawing. */
 export async function loadCardAssets() {
   const { display, sans } = readFonts();
   await Promise.all([
-    document.fonts.load(`500 80px ${display}`),
-    document.fonts.load(`italic 500 40px ${display}`),
-    document.fonts.load(`500 22px ${sans}`),
-    loadGanesha(),
+    document.fonts.load(`500 200px ${display}`),
+    document.fonts.load(`italic 500 100px ${display}`),
+    document.fonts.load(`400 60px ${sans}`),
+    document.fonts.load(`600 60px ${sans}`),
+    ...Object.values(ART).map(loadImage),
   ]).catch(() => undefined);
 }
 
-export async function drawCard(canvas: HTMLCanvasElement, theme: CardTheme, content: CardContent) {
+export async function drawCard(canvas: HTMLCanvasElement, content: CardContent) {
   const { display, sans } = readFonts();
-  const art = await loadGanesha();
-  const W = CARD_WIDTH;
-  const H = CARD_HEIGHT;
-  canvas.width = W;
-  canvas.height = H;
+  const [ganesha, floralLeft, floralRight] = await Promise.all([loadImage(ART.ganesha), loadImage(ART.floralLeft), loadImage(ART.floralRight)]);
+
+  canvas.width = CARD_WIDTH;
+  canvas.height = CARD_HEIGHT;
   const ctx = canvas.getContext("2d")!;
+  ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
+  const cx = T_W / 2;
 
-  // Paper, with a soft vignette so it reads as card stock.
-  ctx.fillStyle = theme.background;
-  ctx.fillRect(0, 0, W, H);
-  const glow = ctx.createRadialGradient(W / 2, H * 0.38, 60, W / 2, H * 0.45, H * 0.75);
-  glow.addColorStop(0, "rgba(255,255,255,0.10)");
-  glow.addColorStop(1, "rgba(72,20,31,0.10)");
+  // ---- Ivory upper half ----
+  const top = ctx.createLinearGradient(0, 0, 0, SPLIT);
+  top.addColorStop(0, C.ivoryTop);
+  top.addColorStop(1, C.ivory);
+  ctx.fillStyle = top;
+  ctx.fillRect(0, 0, T_W, SPLIT);
+
+  // ---- Burgundy lower half, with a soft glow and faint kolam ----
+  const glow = ctx.createRadialGradient(cx, 3300, 200, cx, 3600, 2200);
+  glow.addColorStop(0, C.burgundyGlow);
+  glow.addColorStop(0.55, C.burgundy);
+  glow.addColorStop(1, C.burgundyDeep);
   ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, SPLIT, T_W, T_H - SPLIT);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, SPLIT, T_W, T_H - SPLIT);
+  ctx.clip();
+  kolam(ctx, 0, SPLIT, T_W, T_H - SPLIT);
+  ctx.restore();
 
-  // Fine gold double border.
-  ctx.strokeStyle = theme.gold;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(44, 44, W - 88, H - 88);
-  ctx.globalAlpha = 0.5;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(60, 60, W - 120, H - 120);
-  ctx.globalAlpha = 1;
-  cornerLotus(ctx, 60, 60, 1, 1, theme.gold);
-  cornerLotus(ctx, W - 60, 60, -1, 1, theme.gold);
-  cornerLotus(ctx, 60, H - 60, 1, -1, theme.gold);
-  cornerLotus(ctx, W - 60, H - 60, -1, -1, theme.gold);
+  zariBand(ctx, SPLIT, T_W);
 
-  // Zari bands top and bottom.
-  zari(ctx, 132, W - 132, 98, theme.gold);
-  zari(ctx, 132, W - 132, H - 112, theme.gold);
+  // ---- Gold double frame (outer 68%, inner 32%) ----
+  frameLine(ctx, 102, 0.68);
+  frameLine(ctx, 135, 0.32);
 
-  let y = 150;
-  if (art) {
-    const h = 132, w = (art.width / art.height) * h;
-    ctx.drawImage(art, (W - w) / 2, y, w, h);
-    y += h;
+  // ---- Floral corners (drawn over the frame, as on the template) ----
+  if (floralLeft) ctx.drawImage(floralLeft, 0, 0, 1160, 1330);
+  if (floralRight) ctx.drawImage(floralRight, T_W - 1160, 0, 1160, 1330);
+
+  // ---- Ganesha, invocation, names ----
+  if (ganesha) {
+    const h = 360, w = (ganesha.width / ganesha.height) * h;
+    ctx.drawImage(ganesha, cx - w / 2, 262, w, h);
   }
+  ctx.fillStyle = C.goldText;
+  ctx.font = `italic 500 80px ${display}`;
+  ctx.fillText(content.invocation, cx, 750);
 
-  y += 50;
-  ctx.fillStyle = theme.gold;
-  ctx.font = `italic 500 30px ${display}`;
-  ctx.fillText(content.invocation, W / 2, y);
+  names(ctx, content.groom, content.bride, cx, 1095, display);
+  lotusDivider(ctx, cx, 1275);
 
-  // The couple: names in the ink colour, "&" in gold italic.
-  y += 72;
-  names(ctx, content.groom, content.bride, W / 2, y, display, theme);
+  // "RECEPTION · WEDNESDAY, 18 NOVEMBER 2026"
+  eventLine(ctx, content.event, content.dateLine, cx, 1479, sans);
 
-  y += 40;
-  lotusRule(ctx, W / 2, y, theme.gold);
+  ctx.fillStyle = C.maroon;
+  fitFont(ctx, content.heading, `500 _px ${display}`, 205, 2300);
+  ctx.fillText(content.heading, cx, 1815);
 
-  // Event name: up to two lines, shrinking to fit.
-  let size = 124;
-  let lines: string[] = [];
-  for (; size >= 70; size -= 6) {
-    ctx.font = `500 ${size}px ${display}`;
-    lines = wrap(ctx, content.title, 900);
-    if (lines.length <= 2) break;
-  }
-  lines = lines.slice(0, 2);
-  y += size * 0.78 + 58;
-  ctx.fillStyle = theme.ink;
-  ctx.font = `500 ${size}px ${display}`;
-  lines.forEach((line, i) => ctx.fillText(line, W / 2, y + i * size * 1.02));
-  y += (lines.length - 1) * size * 1.02;
+  // ---- QR tile with gold brackets ----
+  brackets(ctx);
+  qrTile(ctx, content.url);
+  scanMe(ctx, 885, 2940, -1, sans);
+  scanMe(ctx, 2715, 2940, 1, sans);
 
-  if (content.subtitle?.trim()) {
-    y += 62;
-    ctx.fillStyle = theme.muted;
-    ctx.font = `italic 500 40px ${display}`;
-    ctx.fillText(content.subtitle.trim(), W / 2, y);
-  }
+  // ---- Lower text ----
+  ctx.fillStyle = C.ivory;
+  fitFont(ctx, content.tagline, `italic 500 _px ${display}`, 150, 2600);
+  ctx.fillText(content.tagline, cx, 3741);
 
-  // QR code in a thin gold frame, centred in the remaining space.
-  const QR = 470;
-  const bottomBlock = 120 + 64;
-  const room = H - 150 - bottomBlock - (y + 40);
-  const qy = y + 40 + Math.max(0, (room - QR - 48) / 2);
-  drawQr(ctx, content.url, (W - QR) / 2, qy, QR, theme);
+  ctx.fillStyle = "rgba(250,245,236,0.78)";
+  fitFont(ctx, content.message, `400 _px ${sans}`, 62, 2800);
+  ctx.fillText(content.message, cx, 3909);
 
-  y = qy + QR + 24 + 96;
-  ctx.fillStyle = theme.ink;
-  ctx.font = `italic 500 54px ${display}`;
-  ctx.fillText(content.instruction, W / 2, y);
+  ctx.fillStyle = C.goldMuted;
+  ctx.font = `600 54px ${sans}`;
+  spaced(ctx, content.site.toUpperCase(), cx, 4476, 54 * 0.2);
 
-  y += 58;
-  ctx.fillStyle = theme.gold;
-  ctx.font = `500 20px ${sans}`;
-  spaced(ctx, content.footnote.toUpperCase(), W / 2, y, 5);
+  ctx.fillStyle = "rgba(250,245,236,0.62)";
+  fitFont(ctx, content.footer, `italic 500 _px ${display}`, 68, 2800);
+  ctx.fillText(content.footer, cx, 4574);
 }
 
-function names(ctx: CanvasRenderingContext2D, groom: string, bride: string, cx: number, y: number, display: string, theme: CardTheme) {
-  let size = 60;
+// ---------------------------------------------------------------------------
+
+/** Set the largest font size ≤ `max` (replacing "_" in `font`) that fits `width`. */
+function fitFont(ctx: CanvasRenderingContext2D, text: string, font: string, max: number, width: number) {
+  let size = max;
+  ctx.font = font.replace("_", String(size));
+  while (ctx.measureText(text).width > width && size > max * 0.5) {
+    size -= 2;
+    ctx.font = font.replace("_", String(size));
+  }
+}
+
+function names(ctx: CanvasRenderingContext2D, groom: string, bride: string, cx: number, y: number, display: string) {
+  let size = 310;
+  const gap = () => size * 0.34;
   const measure = () => {
     ctx.font = `500 ${size}px ${display}`;
     const a = ctx.measureText(groom).width, b = ctx.measureText(bride).width;
-    ctx.font = `italic 500 ${size}px ${display}`;
+    ctx.font = `italic 500 ${size * 0.62}px ${display}`;
     const amp = ctx.measureText("&").width;
-    return { a, b, amp, total: a + b + amp + size * 0.6 };
+    return { a, b, amp, total: a + b + amp + gap() * 2 };
   };
   let m = measure();
-  while (m.total > 940 && size > 36) { size -= 2; m = measure(); }
+  while (m.total > 2500 && size > 160) {
+    size -= 4;
+    m = measure();
+  }
   let x = cx - m.total / 2;
   ctx.textAlign = "left";
-  ctx.fillStyle = theme.ink;
+  ctx.fillStyle = C.maroon;
   ctx.font = `500 ${size}px ${display}`;
   ctx.fillText(groom, x, y);
-  x += m.a + size * 0.3;
-  ctx.fillStyle = theme.gold;
-  ctx.font = `italic 500 ${size}px ${display}`;
-  ctx.fillText("&", x, y);
-  x += m.amp + size * 0.3;
-  ctx.fillStyle = theme.ink;
+  x += m.a + gap();
+  ctx.fillStyle = C.gold;
+  ctx.font = `italic 500 ${size * 0.62}px ${display}`;
+  ctx.fillText("&", x, y - size * 0.04);
+  x += m.amp + gap();
+  ctx.fillStyle = C.maroon;
   ctx.font = `500 ${size}px ${display}`;
   ctx.fillText(bride, x, y);
   ctx.textAlign = "center";
 }
 
-function drawQr(ctx: CanvasRenderingContext2D, url: string, x: number, y: number, size: number, theme: CardTheme) {
-  const qr = QRCode.create(url, { errorCorrectionLevel: "M" });
-  const n = qr.modules.size;
-  const quiet = 3;
-  const cell = Math.floor(size / (n + quiet * 2));
-  const drawn = cell * (n + quiet * 2);
-  const ox = Math.round(x + (size - drawn) / 2);
-  const oy = Math.round(y + (size - drawn) / 2);
-
-  // Thin gold frame with a soft outer halo.
-  ctx.fillStyle = theme.qrPanel;
-  ctx.fillRect(ox - 12, oy - 12, drawn + 24, drawn + 24);
-  ctx.strokeStyle = theme.gold;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(ox - 12, oy - 12, drawn + 24, drawn + 24);
-  ctx.globalAlpha = 0.35;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(ox - 24, oy - 24, drawn + 48, drawn + 48);
-  ctx.globalAlpha = 1;
-
-  ctx.fillStyle = theme.qrInk;
-  for (let r = 0; r < n; r++) {
-    for (let c = 0; c < n; c++) {
-      if (qr.modules.get(r, c)) ctx.fillRect(ox + (c + quiet) * cell, oy + (r + quiet) * cell, cell, cell);
-    }
+function eventLine(ctx: CanvasRenderingContext2D, event: string, date: string | undefined, cx: number, y: number, sans: string) {
+  let size = 62;
+  const parts = [event.toUpperCase(), date?.toUpperCase()].filter(Boolean) as string[];
+  const widthOf = () => {
+    ctx.font = `600 ${size}px ${sans}`;
+    const tracked = (s: string) => [...s].reduce((w, ch) => w + ctx.measureText(ch).width, 0) + size * 0.3 * (s.length - 1);
+    return { tracked, total: parts.reduce((w, p) => w + tracked(p), 0) + (parts.length - 1) * size * 1.6 };
+  };
+  let m = widthOf();
+  while (m.total > 2700 && size > 36) {
+    size -= 2;
+    m = widthOf();
   }
+  let x = cx - m.total / 2;
+  parts.forEach((p, i) => {
+    if (i > 0) {
+      ctx.fillStyle = C.gold;
+      ctx.beginPath();
+      ctx.arc(x + size * 0.8, y - size * 0.36, size * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+      x += size * 1.6;
+    }
+    ctx.fillStyle = C.maroon;
+    ctx.textAlign = "left";
+    for (const ch of p) {
+      ctx.fillText(ch, x, y);
+      x += ctx.measureText(ch).width + size * 0.3;
+    }
+    x -= size * 0.3;
+  });
+  ctx.textAlign = "center";
 }
 
-/** Twin gold rules with a row of small diamonds and dots between — a woven zari border. */
-function zari(ctx: CanvasRenderingContext2D, x0: number, x1: number, y: number, gold: string) {
-  ctx.strokeStyle = gold;
-  ctx.fillStyle = gold;
-  ctx.globalAlpha = 0.85;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(x0, y - 9);
-  ctx.lineTo(x1, y - 9);
-  ctx.moveTo(x0, y + 9);
-  ctx.lineTo(x1, y + 9);
-  ctx.stroke();
-  ctx.lineWidth = 1.2;
-  for (let x = x0 + 12; x < x1 - 6; x += 26) {
+function frameLine(ctx: CanvasRenderingContext2D, inset: number, alpha: number) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = C.gold;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(inset + 1.5, inset + 1.5, T_W - (inset + 1.5) * 2, T_H - (inset + 1.5) * 2);
+  ctx.restore();
+}
+
+/** Twin gold rules with diamonds and dots between — a woven zari border. */
+function zariBand(ctx: CanvasRenderingContext2D, y: number, width: number) {
+  ctx.save();
+  ctx.fillStyle = C.gold;
+  ctx.fillRect(0, y + 1, width, 4);
+  ctx.fillRect(0, y + 48, width, 4);
+  ctx.strokeStyle = C.gold;
+  ctx.lineWidth = 3;
+  const mid = y + 27;
+  for (let x = 30; x < width; x += 66) {
     ctx.beginPath();
-    ctx.moveTo(x, y - 5);
-    ctx.lineTo(x + 5, y);
-    ctx.lineTo(x, y + 5);
-    ctx.lineTo(x - 5, y);
+    ctx.moveTo(x, mid - 12);
+    ctx.lineTo(x + 12, mid);
+    ctx.lineTo(x, mid + 12);
+    ctx.lineTo(x - 12, mid);
     ctx.closePath();
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(x + 13, y, 1.6, 0, Math.PI * 2);
+    ctx.arc(x, mid, 3.5, 0, Math.PI * 2);
+    ctx.arc(x + 33, mid, 4, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+/** Faint kolam line pattern on the burgundy half. */
+function kolam(ctx: CanvasRenderingContext2D, x0: number, y0: number, w: number, h: number) {
+  const tile = 132, k = tile / 64;
+  const shapes = [
+    new Path2D("M32 6 C46 6 58 18 58 32 C58 46 46 58 32 58 C18 58 6 46 6 32 C6 18 18 6 32 6 Z"),
+    new Path2D("M32 18 L46 32 L32 46 L18 32 Z"),
+    new Path2D("M0 0 C10 10 10 22 0 32 M64 0 C54 10 54 22 64 32 M0 64 C10 54 10 42 0 32 M64 64 C54 54 54 42 64 32"),
+  ];
+  ctx.save();
+  ctx.globalAlpha = 0.07;
+  ctx.strokeStyle = C.goldMuted;
+  ctx.lineWidth = 0.8 * 1.6;
+  for (let y = y0; y < y0 + h; y += tile) {
+    for (let x = x0; x < x0 + w; x += tile) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(k, k);
+      ctx.lineWidth = 1.2;
+      shapes.forEach((s) => ctx.stroke(s));
+      ctx.restore();
+    }
+  }
+  ctx.restore();
 }
 
 /** Small lotus between two fading gold hairlines. */
-function lotusRule(ctx: CanvasRenderingContext2D, cx: number, cy: number, gold: string) {
+function lotusDivider(ctx: CanvasRenderingContext2D, cx: number, cy: number) {
   for (const dir of [-1, 1]) {
-    const g = ctx.createLinearGradient(cx + dir * 40, cy, cx + dir * 170, cy);
-    g.addColorStop(0, gold);
+    const g = ctx.createLinearGradient(cx + dir * 110, cy, cx + dir * 525, cy);
+    g.addColorStop(0, "rgba(197,161,91,0.75)");
     g.addColorStop(1, "rgba(197,161,91,0)");
     ctx.strokeStyle = g;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(cx + dir * 40, cy);
-    ctx.lineTo(cx + dir * 170, cy);
+    ctx.moveTo(cx + dir * 110, cy);
+    ctx.lineTo(cx + dir * 525, cy);
     ctx.stroke();
   }
   ctx.save();
-  ctx.translate(cx - 24, cy - 16);
-  ctx.strokeStyle = gold;
-  ctx.lineWidth = 1.4;
+  ctx.translate(cx - 72, cy - 40);
+  ctx.scale(3, 3);
+  ctx.strokeStyle = C.gold;
+  ctx.lineWidth = 0.9;
   ctx.fillStyle = "#E8D4CF";
   const petal = new Path2D("M24 2 C28 8 28 14 24 20 C20 14 20 8 24 2 Z");
   ctx.fill(petal);
   ctx.stroke(petal);
   ctx.stroke(new Path2D("M24 20 C17 18 12 13 11 7 C17 9 21 13 24 20 Z"));
   ctx.stroke(new Path2D("M24 20 C31 18 36 13 37 7 C31 9 27 13 24 20 Z"));
+  ctx.stroke(new Path2D("M24 20 C16 21 8 18 3 13 M24 20 C32 21 40 18 45 13"));
   ctx.restore();
 }
 
-/** A tiny lotus bud tucked into each inner corner. */
-function cornerLotus(ctx: CanvasRenderingContext2D, x: number, y: number, sx: number, sy: number, gold: string) {
+/** Four gold L-brackets framing the QR tile. */
+function brackets(ctx: CanvasRenderingContext2D) {
+  const L = 270, r = 54;
+  const x0 = 1050, x1 = 2550, y0 = 1980, y1 = 3465;
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, "#D7B56C");
+  g.addColorStop(0.5, C.gold);
+  g.addColorStop(1, "#DCC58E");
+  ctx.save();
+  ctx.strokeStyle = g;
+  ctx.lineWidth = 15;
+  ctx.lineCap = "round";
+  const corner = (x: number, y: number, sx: number, sy: number) => {
+    ctx.beginPath();
+    ctx.moveTo(x + sx * L, y);
+    ctx.lineTo(x + sx * r, y);
+    ctx.quadraticCurveTo(x, y, x, y + sy * r);
+    ctx.lineTo(x, y + sy * L);
+    ctx.stroke();
+  };
+  corner(x0, y0, 1, 1);
+  corner(x1, y0, -1, 1);
+  corner(x0, y1, 1, -1);
+  corner(x1, y1, -1, -1);
+  ctx.restore();
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** White tile with a silver bevel and gold hairline; the QR sits inside with a quiet margin. */
+function qrTile(ctx: CanvasRenderingContext2D, url: string) {
+  const { x, y, size, r } = TILE;
+  ctx.save();
+  ctx.shadowColor = "rgba(20,4,8,0.35)";
+  ctx.shadowBlur = 60;
+  ctx.shadowOffsetY = 24;
+  const bevel = ctx.createLinearGradient(x, y, x, y + size);
+  bevel.addColorStop(0, "#FFFFFF");
+  bevel.addColorStop(1, "#D8D2CB");
+  ctx.fillStyle = bevel;
+  roundRect(ctx, x, y, size, size, r);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = C.gold;
+  ctx.lineWidth = 4;
+  roundRect(ctx, x + 14, y + 14, size - 28, size - 28, r - 12);
+  ctx.stroke();
+  ctx.fillStyle = "#FFFFFF";
+  roundRect(ctx, x + 22, y + 22, size - 44, size - 44, r - 18);
+  ctx.fill();
+
+  const qr = QRCode.create(url, { errorCorrectionLevel: "M" });
+  const n = qr.modules.size;
+  const area = size - 44 - 2 * 92; // white margin inside the tile
+  const cell = Math.floor(area / n);
+  const drawn = cell * n;
+  const ox = Math.round(x + (size - drawn) / 2);
+  const oy = Math.round(y + (size - drawn) / 2);
+  ctx.fillStyle = C.burgundy;
+  for (let row = 0; row < n; row++) {
+    for (let col = 0; col < n; col++) {
+      if (qr.modules.get(row, col)) ctx.fillRect(ox + col * cell, oy + row * cell, cell, cell);
+    }
+  }
+}
+
+/** Vertical "SCAN ME" beside the tile; dir -1 reads upward (left), 1 downward (right). */
+function scanMe(ctx: CanvasRenderingContext2D, x: number, y: number, dir: -1 | 1, sans: string) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(sx, sy);
-  ctx.strokeStyle = gold;
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.moveTo(14, 14);
-  ctx.quadraticCurveTo(34, 10, 44, 30);
-  ctx.quadraticCurveTo(24, 34, 14, 14);
-  ctx.moveTo(14, 14);
-  ctx.quadraticCurveTo(10, 34, 30, 44);
-  ctx.quadraticCurveTo(34, 24, 14, 14);
-  ctx.stroke();
-  ctx.fillStyle = gold;
-  ctx.beginPath();
-  ctx.arc(14, 14, 3, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.rotate((dir * Math.PI) / 2);
+  ctx.fillStyle = C.goldMuted;
+  ctx.font = `600 46px ${sans}`;
+  ctx.textBaseline = "middle";
+  spaced(ctx, "SCAN ME", 0, 0, 46 * 0.42);
   ctx.restore();
 }
 
@@ -316,21 +440,4 @@ function spaced(ctx: CanvasRenderingContext2D, text: string, cx: number, y: numb
     x += widths[i] + tracking;
   });
   ctx.textAlign = align;
-}
-
-function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
-  const words = text.trim().split(/\s+/);
-  const lines: string[] = [];
-  let line = "";
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
-    if (ctx.measureText(next).width > maxWidth && line) {
-      lines.push(line);
-      line = word;
-    } else {
-      line = next;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
 }
