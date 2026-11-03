@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchFolder, submitMemories } from "../lib/api";
+import { deleteFolder, deleteMemory, fetchFolder, submitMemories } from "../lib/api";
 import { formatDate, prepareImage } from "../lib/media";
 import type { Folder, Memory } from "../lib/types";
 import { AlbumBar, ArrowRight, SoftNotice } from "./Chrome";
 import { FadeImage } from "./FadeImage";
 import { LotusDivider } from "./art/Ornaments";
 import { MemoryViewer, credit } from "./MemoryViewer";
+import { ConfirmDialog, TrashIcon } from "./Modal";
 
 const REFRESH_MS = 10_000;
 
@@ -19,6 +21,8 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
   const [openId, setOpenId] = useState<string>();
   const [upload, setUpload] = useState<{ state: "busy" | "done" | "error"; text: string }>();
   const fileInput = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+  const [confirming, setConfirming] = useState<{ kind: "album" } | { kind: "photo"; memory: Memory }>();
 
   const load = useCallback(async () => {
     try {
@@ -55,6 +59,21 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
     } catch (err) {
       setUpload({ state: "error", text: `Upload failed: ${(err as Error).message}` });
     }
+  }
+
+  async function removeAlbum() {
+    await deleteFolder(folderId);
+    router.push("/memories");
+  }
+
+  async function removePhoto(memory: Memory) {
+    await deleteMemory(memory.id);
+    const at = memories.findIndex((m) => m.id === memory.id);
+    const rest = memories.filter((m) => m.id !== memory.id);
+    setMemories(rest);
+    // Keep the viewer open on the next photo, if the deleted one was showing.
+    if (openId === memory.id) setOpenId(rest[Math.min(at, rest.length - 1)]?.id);
+    setConfirming(undefined);
   }
 
   const back = { href: "/memories", label: "All Albums", short: "Albums" };
@@ -100,6 +119,9 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
               <Link href={`/memories/${folder.id}/qr`} className="btn btn--ghost text-maroon">
                 <QrIcon /> QR code
               </Link>
+              <button className="btn btn--ghost text-maroon" onClick={() => setConfirming({ kind: "album" })}>
+                <TrashIcon /> Delete album
+              </button>
             </div>
             {upload && (
               <p role="status" className={`mt-4 text-sm ${upload.state === "error" ? "text-maroon" : "text-ink-muted"}`}>
@@ -131,7 +153,7 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
             <Masonry
               items={memories}
               render={(m, i) => (
-                <div key={m.id} className="fade-in" style={{ animationDelay: `${Math.min(i, 12) * 50}ms` }}>
+                <div key={m.id} className="group/tile fade-in relative" style={{ animationDelay: `${Math.min(i, 12) * 50}ms` }}>
                   <button
                     type="button"
                     onClick={() => setOpenId(m.id)}
@@ -144,6 +166,15 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
                       {m.message && <span className="line-clamp-2 font-display text-[15px] leading-snug text-ivory italic">“{m.message}”</span>}
                       <span className="mt-0.5 block text-[11px] text-ivory/80">{credit(m)}</span>
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirming({ kind: "photo", memory: m })}
+                    aria-label={`Delete photo ${i + 1} — ${credit(m)}`}
+                    title="Delete photo"
+                    className="absolute top-2 right-2 grid h-9 w-9 place-items-center rounded-full border border-gold/40 bg-burgundy/75 text-ivory backdrop-blur-sm transition hover:border-gold hover:bg-maroon focus-visible:opacity-100 sm:opacity-0 sm:group-hover/tile:opacity-100"
+                  >
+                    <TrashIcon />
                   </button>
                 </div>
               )}
@@ -158,8 +189,34 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
           index={openIndex}
           onIndexChange={(i) => setOpenId(memories[i].id)}
           onClose={() => setOpenId(undefined)}
+          onDelete={(m) => setConfirming({ kind: "photo", memory: m })}
+          paused={!!confirming}
         />
       )}
+
+      <ConfirmDialog
+        open={confirming?.kind === "album"}
+        title={`Delete the ${folder.name} album?`}
+        confirmLabel="Delete album"
+        onConfirm={removeAlbum}
+        onClose={() => setConfirming(undefined)}
+      >
+        <p>
+          This permanently removes {memories.length === 0 ? "the album" : `all ${memories.length} ${memories.length === 1 ? "photo" : "photos"}`}, with every note,
+          reaction and voice note. Guests scanning this album&apos;s QR code will no longer be able to share photos.
+        </p>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={confirming?.kind === "photo"}
+        title="Delete this photo?"
+        confirmLabel="Delete photo"
+        onConfirm={() => (confirming?.kind === "photo" ? removePhoto(confirming.memory) : Promise.resolve())}
+        onClose={() => setConfirming(undefined)}
+      >
+        <p>
+          {confirming?.kind === "photo" ? credit(confirming.memory) : ""}. Its note, reactions and voice note are removed too. This can&apos;t be undone.
+        </p>
+      </ConfirmDialog>
     </>
   );
 }

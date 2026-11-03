@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { formatTime } from "../lib/media";
 import type { Memory } from "../lib/types";
+import { TrashIcon } from "./Modal";
 import { VoicePlayer } from "./VoicePlayer";
 
 /** "Shared by Meera", as the invitation credits photos. */
@@ -15,11 +16,16 @@ export function MemoryViewer({
   index,
   onIndexChange,
   onClose,
+  onDelete,
+  paused = false,
 }: {
   memories: Memory[];
   index: number;
   onIndexChange: (i: number) => void;
   onClose: () => void;
+  onDelete?: (memory: Memory) => void;
+  /** True while a dialog is open over the viewer, so keys go to the dialog. */
+  paused?: boolean;
 }) {
   const memory = memories[index];
   const touch = useRef<{ x: number; y: number } | null>(null);
@@ -28,6 +34,7 @@ export function MemoryViewer({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (paused) return;
       if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft") prev?.();
       if (e.key === "ArrowRight") next?.();
@@ -131,9 +138,20 @@ export function MemoryViewer({
 
         {!hasDetails && <p className="mt-5 text-sm text-ivory/45">No note with this photo.</p>}
 
-        <a href={memory.photoUrl} download className="mt-8 inline-flex border-b border-gold/40 text-sm text-gold-muted transition-colors hover:border-gold hover:text-gold">
-          Download original
-        </a>
+        <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <a href={memory.photoUrl} download className="inline-flex border-b border-gold/40 text-sm text-gold-muted transition-colors hover:border-gold hover:text-gold">
+            Download original
+          </a>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(memory)}
+              className="inline-flex items-center gap-2 border-b border-rose/30 text-sm text-rose transition-colors hover:border-rose hover:text-ivory"
+            >
+              <TrashIcon /> Delete photo
+            </button>
+          )}
+        </div>
         {memories.length > 1 && <p className="mt-6 text-[11px] text-ivory/40 lg:hidden">Swipe the photo to browse · swipe down to close</p>}
       </aside>
     </div>

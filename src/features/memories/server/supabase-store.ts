@@ -194,6 +194,32 @@ export async function addReaction(memoryId: string, emoji: string) {
   return toMemory(row);
 }
 
+/** Removes one memory: its files from Storage first, then the row. */
+export async function deleteMemory(memoryId: string) {
+  const row = check<Pick<MemoryRow, "folder_id" | "photo_name" | "voice_name"> | null>(
+    await db().from("memories").select("folder_id, photo_name, voice_name").eq("id", memoryId).maybeSingle(),
+  );
+  if (!row) return false;
+  const paths = [row.photo_name, row.voice_name].filter((n): n is string => !!n).map((n) => `${row.folder_id}/${n}`);
+  if (paths.length) check(await db().storage.from(BUCKET).remove(paths));
+  check(await db().from("memories").delete().eq("id", memoryId));
+  return true;
+}
+
+/** Removes a folder: every file under it in Storage, then the folder (its memories cascade). */
+export async function deleteFolder(folderId: string) {
+  if (!(await getFolder(folderId))) return false;
+  // Storage lists at most `limit` objects per call, so remove in pages.
+  for (;;) {
+    const files = check(await db().storage.from(BUCKET).list(folderId, { limit: 1000 }));
+    if (!files.length) break;
+    check(await db().storage.from(BUCKET).remove(files.map((f) => `${folderId}/${f.name}`)));
+    if (files.length < 1000) break;
+  }
+  check(await db().from("memory_folders").delete().eq("id", folderId));
+  return true;
+}
+
 // ---- Direct browser uploads -------------------------------------------------
 // Serverless hosts cap request bodies (~4.5 MB on Vercel), so in production the
 // browser uploads each file straight to Storage with a one-time signed URL and

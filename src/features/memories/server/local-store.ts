@@ -130,6 +130,36 @@ export function addReaction(memoryId: string, emoji: string) {
   });
 }
 
+/** Removes one memory and its photo and voice note files. */
+export function deleteMemory(memoryId: string) {
+  return exclusive(async () => {
+    const db = await readDb();
+    const memory = db.memories.find((m) => m.id === memoryId);
+    if (!memory) return false;
+    db.memories = db.memories.filter((m) => m.id !== memoryId);
+    await writeDb(db);
+    for (const url of [memory.photoUrl, memory.voiceNoteUrl]) {
+      const name = url?.split("/").pop();
+      if (name && isSafeFileRef(memory.folderId, name)) await fs.rm(path.join(UPLOAD_DIR, memory.folderId, name), { force: true });
+    }
+    return true;
+  });
+}
+
+/** Removes a folder, all of its memories, and their files. */
+export function deleteFolder(folderId: string) {
+  return exclusive(async () => {
+    const db = await readDb();
+    if (!db.folders.some((f) => f.id === folderId)) return false;
+    db.folders = db.folders.filter((f) => f.id !== folderId);
+    db.memories = db.memories.filter((m) => m.folderId !== folderId);
+    await writeDb(db);
+    // Folder ids are short hex strings; never let anything else reach rm -r.
+    if (/^[\w-]+$/.test(folderId)) await fs.rm(path.join(UPLOAD_DIR, folderId), { recursive: true, force: true });
+    return true;
+  });
+}
+
 // ---- Files -----------------------------------------------------------------
 
 async function saveFile(folderId: string, base: string, file: File) {

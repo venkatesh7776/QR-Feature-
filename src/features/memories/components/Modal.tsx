@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 /** Ivory dialog with a gold hairline over a blurred burgundy backdrop. */
 export function Modal({
@@ -43,6 +43,77 @@ export function Modal({
         {children}
       </div>
     </div>
+  );
+}
+
+/** "Are you sure?" for actions that can't be undone. */
+export function ConfirmDialog({
+  open,
+  title,
+  children,
+  confirmLabel,
+  onConfirm,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  children: React.ReactNode;
+  confirmLabel: string;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    if (open) {
+      setBusy(false);
+      setError(undefined);
+    }
+  }, [open]);
+
+  async function confirm() {
+    setBusy(true);
+    setError(undefined);
+    try {
+      await onConfirm();
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={busy ? () => undefined : onClose} label={title} className="sm:max-w-md">
+      <div className="p-6 sm:p-8">
+        <span className="grid h-12 w-12 place-items-center rounded-full border border-maroon/25 text-maroon">
+          <TrashIcon className="h-5 w-5" />
+        </span>
+        <h2 className="t-h3 mt-5">{title}</h2>
+        <div className="mt-3 text-[15px] leading-relaxed text-ink-muted">{children}</div>
+        {error && (
+          <p role="alert" className="mt-4 text-sm text-maroon">
+            Couldn&apos;t delete: {error}
+          </p>
+        )}
+        <div className="mt-8 flex gap-3">
+          <button type="button" className="btn btn--maroon flex-1" onClick={confirm} disabled={busy} autoFocus>
+            {busy ? "Deleting…" : confirmLabel}
+          </button>
+          <button type="button" className="btn btn--ghost text-maroon" onClick={onClose} disabled={busy}>
+            Keep it
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+export function TrashIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden viewBox="0 0 16 16" className={className} fill="none" stroke="currentColor" strokeWidth={1.3} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 4h11M6.5 4V2.5h3V4M4 4l.7 9.2a1 1 0 0 0 1 .8h4.6a1 1 0 0 0 1-.8L12 4M6.8 6.5v5M9.2 6.5v5" />
+    </svg>
   );
 }
 

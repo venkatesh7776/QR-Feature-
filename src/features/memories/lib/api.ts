@@ -30,6 +30,22 @@ export function createFolder(input: { name: string; date?: string; type?: string
   }).then((r) => json<Folder>(r));
 }
 
+async function done(res: Response) {
+  if (res.ok) return;
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
+  throw new Error(body.error ?? `Request failed (${res.status})`);
+}
+
+/** Deletes a folder with all of its photos, notes and voice notes. */
+export function deleteFolder(id: string) {
+  return fetch(`${BASE}/folders/${id}`, { method: "DELETE" }).then(done);
+}
+
+/** Deletes one photo with its note, reactions and voice note. */
+export function deleteMemory(id: string) {
+  return fetch(`${BASE}/memories/${id}`, { method: "DELETE" }).then(done);
+}
+
 export interface DraftMemory {
   photo: Blob;
   message?: string;

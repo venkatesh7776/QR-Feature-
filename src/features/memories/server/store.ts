@@ -17,8 +17,17 @@ const backend = useSupabase ? supabase : local;
 
 export const storageBackend = useSupabase ? "supabase" : "local";
 
-export const { listFolders, getFolder, createFolder, listMemories, addMemories, addReaction, getFile } =
-  backend;
+export const {
+  listFolders,
+  getFolder,
+  createFolder,
+  listMemories,
+  addMemories,
+  addReaction,
+  deleteMemory,
+  deleteFolder,
+  getFile,
+} = backend;
 
 /** Supabase only: browser uploads files directly, then posts metadata. */
 export const directUploads = useSupabase;
