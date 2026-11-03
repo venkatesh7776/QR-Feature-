@@ -55,6 +55,20 @@ URLs (`POST /api/memories/folders/[id]/uploads`), then posts only the metadata.
 Photos are served through `/api/memories/files/...`, which redirects to a
 short-lived signed Storage URL.
 
+## Look and feel
+
+The app is styled as part of the couple's invitation website (Royal Indian
+Heritage × Modern Luxury): ivory and burgundy, antique gold, Cormorant Garamond
+with Inter, kolam and mandala textures, sand-and-cream folder cards, and a
+stationery-style QR card with the Ganesha and the couple's names.
+
+- `src/features/memories/lib/wedding.ts` holds everything couple-specific
+  (names, invocation, suggested event folders and dates). Change only this
+  file to set the app up for another wedding.
+- `src/app/globals.css` holds the colour, type and motion tokens.
+- `src/features/memories/components/art/Ornaments.tsx` has the ornaments
+  (lotus divider, kolam, arch edge, mandala, zari band, Ganesha).
+
 ## Routes
 
 | Route | Who | Purpose |

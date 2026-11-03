@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+/** Ivory dialog with a gold hairline over a blurred burgundy backdrop. */
 export function Modal({
   open,
   onClose,
@@ -33,10 +34,14 @@ export function Modal({
       role="dialog"
       aria-modal="true"
       aria-label={label}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/30 sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-burgundy/70 backdrop-blur-sm sm:items-center sm:p-6"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className={`max-h-[92dvh] w-full overflow-y-auto bg-paper ${className}`}>{children}</div>
+      <div
+        className={`fade-in max-h-[92dvh] w-full overflow-y-auto border border-gold/50 bg-ivory shadow-[0_24px_50px_-28px_rgba(72,20,31,0.55)] sm:rounded-[2px] ${className}`}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -47,10 +52,10 @@ export function CloseButton({ onClick, label = "Close" }: { onClick: () => void;
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="grid h-9 w-9 place-items-center text-muted transition-colors hover:text-ink"
+      className="grid h-10 w-10 place-items-center rounded-full border border-gold/40 text-maroon transition-colors hover:border-maroon hover:bg-maroon hover:text-ivory"
     >
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
-        <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.3" />
+      <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden>
+        <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.4" />
       </svg>
     </button>
   );

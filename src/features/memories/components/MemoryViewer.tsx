@@ -3,9 +3,13 @@
 import { useEffect, useRef } from "react";
 import { formatTime } from "../lib/media";
 import type { Memory } from "../lib/types";
-import { CloseButton } from "./Modal";
 import { VoicePlayer } from "./VoicePlayer";
 
+/** "Shared by Meera", as the invitation credits photos. */
+export const credit = (m: Memory) =>
+  m.source === "couple" ? "Shared by the couple" : m.guestName ? `Shared by ${m.guestName}` : "Shared by a guest";
+
+/** Full-screen viewer on deep burgundy with a details panel, matching the invitation's. */
 export function MemoryViewer({
   memories,
   index,
@@ -18,7 +22,7 @@ export function MemoryViewer({
   onClose: () => void;
 }) {
   const memory = memories[index];
-  const touchX = useRef<number | undefined>(undefined);
+  const touch = useRef<{ x: number; y: number } | null>(null);
   const prev = index > 0 ? () => onIndexChange(index - 1) : undefined;
   const next = index < memories.length - 1 ? () => onIndexChange(index + 1) : undefined;
 
@@ -37,81 +41,100 @@ export function MemoryViewer({
     };
   });
 
+  // Warm the neighbours so swiping feels instant.
+  useEffect(() => {
+    for (const n of [memories[index - 1], memories[index + 1]]) if (n) new Image().src = n.photoUrl;
+  }, [index, memories]);
+
   const reactions = givenReactions(memory);
-  const from = memory.source === "couple" ? "Added by you" : memory.guestName ? `From ${memory.guestName}` : "From a guest";
+  const hasDetails = Boolean(memory.message || memory.voiceNoteUrl || reactions.length);
+  const navBtn =
+    "grid h-12 w-12 place-items-center rounded-full border border-gold/40 bg-burgundy/70 text-ivory backdrop-blur transition-colors hover:border-gold hover:bg-burgundy";
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Memory" className="fixed inset-0 z-50 flex flex-col bg-paper lg:flex-row">
+    <div role="dialog" aria-modal="true" aria-label="Photo viewer" className="fixed inset-0 z-50 flex flex-col bg-[#1f0a0f] text-ivory lg:flex-row">
       <div
-        className="relative flex min-h-0 flex-1 items-center justify-center bg-wash px-4 py-4 sm:px-24 sm:py-10"
-        onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
+        className="relative flex min-h-0 flex-1 flex-col"
+        onTouchStart={(e) => (touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY })}
         onTouchEnd={(e) => {
-          const dx = e.changedTouches[0].clientX - (touchX.current ?? 0);
-          if (Math.abs(dx) > 50) (dx < 0 ? next : prev)?.();
-          touchX.current = undefined;
+          const s = touch.current;
+          touch.current = null;
+          if (!s) return;
+          const dx = e.changedTouches[0].clientX - s.x;
+          const dy = e.changedTouches[0].clientY - s.y;
+          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) (dx < 0 ? next : prev)?.();
+          else if (dy > 90 && Math.abs(dy) > Math.abs(dx)) onClose();
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img key={memory.id} src={memory.photoUrl} alt={memory.message ?? ""} className="max-h-full max-w-full object-contain" />
-        <NavButton label="Previous photo" onClick={prev} className="left-3 sm:left-6">
-          <path d="M11 4L6 9l5 5" />
-        </NavButton>
-        <NavButton label="Next photo" onClick={next} className="right-3 sm:right-6">
-          <path d="M7 4l5 5-5 5" />
-        </NavButton>
+        <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <p className="t-label text-[10px] text-gold-muted tabular-nums">
+            {index + 1} / {memories.length}
+          </p>
+          <button type="button" onClick={onClose} aria-label="Close viewer" className={navBtn}>
+            <svg aria-hidden viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.4}>
+              <path d="M3 3l10 10M13 3L3 13" />
+            </svg>
+          </button>
+        </div>
+        <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-3 sm:px-20">
+          {/* eslint-disable-next-line @next/next/no-img-element -- signed Storage URL */}
+          <img
+            key={memory.id}
+            src={memory.photoUrl}
+            alt={memory.message ?? credit(memory)}
+            className="fade-in max-h-full max-w-full object-contain shadow-[0_30px_80px_-20px_rgba(0,0,0,0.7)] select-none"
+          />
+          {prev && (
+            <button type="button" onClick={prev} aria-label="Previous photo" className={`${navBtn} absolute top-1/2 left-3 -translate-y-1/2`}>
+              <svg aria-hidden viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.4}>
+                <path d="M10 3L5 8l5 5" />
+              </svg>
+            </button>
+          )}
+          {next && (
+            <button type="button" onClick={next} aria-label="Next photo" className={`${navBtn} absolute top-1/2 right-3 -translate-y-1/2`}>
+              <svg aria-hidden viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.4}>
+                <path d="M6 3l5 5-5 5" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
-      <aside className="flex max-h-[48dvh] flex-col overflow-y-auto border-t border-line lg:max-h-none lg:w-[380px] lg:border-t-0 lg:border-l">
-        <div className="flex items-center justify-between px-6 pt-5">
-          <span className="text-xs text-muted tabular-nums">
-            {index + 1} / {memories.length}
-          </span>
-          <div className="-mr-2">
-            <CloseButton onClick={onClose} />
+      {/* details: who shared it, their note, voice note and reactions */}
+      <aside className="max-h-[42dvh] shrink-0 overflow-y-auto border-t border-gold/20 bg-[#2a0d14] px-6 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] lg:max-h-none lg:w-[380px] lg:border-t-0 lg:border-l lg:pt-20">
+        <p className="t-label text-[10px] text-gold">{credit(memory)}</p>
+        <p className="mt-1 text-xs text-ivory/50">{formatTime(memory.createdAt)}</p>
+
+        {memory.message && <blockquote className="mt-5 font-display text-[1.55rem] leading-snug text-ivory italic">“{memory.message}”</blockquote>}
+
+        {memory.voiceNoteUrl && (
+          <div className="mt-6">
+            <p className="t-label mb-3 text-[10px] text-gold-muted">Voice note</p>
+            <VoicePlayer key={memory.id} src={memory.voiceNoteUrl} tone="dark" />
           </div>
-        </div>
+        )}
 
-        <div className="flex-1 px-6 pb-8">
-          <p className="eyebrow mt-4">{from}</p>
-          <p className="mt-1 text-sm text-muted">{formatTime(memory.createdAt)}</p>
+        {reactions.length > 0 && (
+          <div className="mt-6 border-t border-gold/15 pt-5">
+            <p className="t-label mb-3 text-[10px] text-gold-muted">Reactions</p>
+            <ul className="flex flex-wrap gap-2">
+              {reactions.map(([emoji, count]) => (
+                <li key={emoji} aria-label={`${emoji} ${count}`} className="flex h-9 items-center gap-1.5 rounded-full border border-gold/30 px-3 text-base">
+                  <span>{emoji}</span>
+                  <span className="text-xs text-ivory/70 tabular-nums">{count}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
-          {memory.message ? (
-            <blockquote className="mt-8 font-serif text-2xl leading-snug">“{memory.message}”</blockquote>
-          ) : (
-            <p className="mt-8 text-sm text-faint">No written message.</p>
-          )}
+        {!hasDetails && <p className="mt-5 text-sm text-ivory/45">No note with this photo.</p>}
 
-          {memory.voiceNoteUrl && (
-            <div className="mt-8">
-              <p className="eyebrow">Voice note</p>
-              <div className="mt-3">
-                <VoicePlayer key={memory.id} src={memory.voiceNoteUrl} />
-              </div>
-            </div>
-          )}
-
-          {reactions.length > 0 && (
-            <div className="mt-10 border-t border-line pt-6">
-              <p className="eyebrow">Reactions</p>
-              <ul className="mt-4 flex flex-wrap gap-2">
-                {reactions.map(([emoji, count]) => (
-                  <li
-                    key={emoji}
-                    aria-label={`${emoji} ${count}`}
-                    className="flex h-10 items-center gap-1.5 rounded-full px-3 text-lg ring-1 ring-line"
-                  >
-                    <span>{emoji}</span>
-                    <span className="text-xs text-muted tabular-nums">{count}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <a href={memory.photoUrl} download className="link mt-10 inline-block text-muted">
-            Download original
-          </a>
-        </div>
+        <a href={memory.photoUrl} download className="mt-8 inline-flex border-b border-gold/40 text-sm text-gold-muted transition-colors hover:border-gold hover:text-gold">
+          Download original
+        </a>
+        {memories.length > 1 && <p className="mt-6 text-[11px] text-ivory/40 lg:hidden">Swipe the photo to browse · swipe down to close</p>}
       </aside>
     </div>
   );
@@ -122,31 +145,4 @@ function givenReactions(memory: Memory): [string, number][] {
   return Object.entries(memory.reactions)
     .filter(([, n]) => n > 0)
     .sort((a, b) => b[1] - a[1]);
-}
-
-function NavButton({
-  label,
-  onClick,
-  className,
-  children,
-}: {
-  label: string;
-  onClick?: () => void;
-  className: string;
-  children: React.ReactNode;
-}) {
-  if (!onClick) return null;
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className={`absolute top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-ink text-paper shadow-[0_2px_10px_rgba(0,0,0,0.18)] transition hover:scale-110 hover:bg-black focus-visible:scale-110 active:scale-95 ${className}`}
-    >
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        {children}
-      </svg>
-    </button>
-  );
 }

@@ -5,8 +5,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchFolder, submitMemories } from "../lib/api";
 import { formatDate, prepareImage } from "../lib/media";
 import type { Folder, Memory } from "../lib/types";
-import { MemoryViewer } from "./MemoryViewer";
-import { Reactions } from "./Reactions";
+import { AlbumBar, ArrowRight, SoftNotice } from "./Chrome";
+import { FadeImage } from "./FadeImage";
+import { LotusDivider } from "./art/Ornaments";
+import { MemoryViewer, credit } from "./MemoryViewer";
 
 const REFRESH_MS = 10_000;
 
@@ -49,20 +51,24 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
       const photos = await Promise.all(files.map((f) => prepareImage(f)));
       await submitMemories(folderId, "couple", photos.map((photo) => ({ photo })));
       await load();
-      setUpload({ state: "done", text: `Added ${label} to this folder.` });
+      setUpload({ state: "done", text: `Added ${label} to this album.` });
     } catch (err) {
       setUpload({ state: "error", text: `Upload failed: ${(err as Error).message}` });
     }
   }
 
+  const back = { href: "/memories", label: "All Albums", short: "Albums" };
+
   if (missing) {
     return (
-      <main className="mx-auto max-w-6xl px-5 py-24 text-center sm:px-10">
-        <p className="font-serif text-4xl">This folder doesn&apos;t exist.</p>
-        <Link href="/memories" className="link mt-6 inline-block">
-          Back to all folders
-        </Link>
-      </main>
+      <>
+        <AlbumBar title="Album not found" back={back} />
+        <main className="gutter py-20">
+          <SoftNotice title="This album doesn't exist" icon="folder">
+            <Link href="/memories" className="link">Back to all albums</Link>
+          </SoftNotice>
+        </main>
+      </>
     );
   }
 
@@ -71,95 +77,79 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
   const guestCount = memories.filter((m) => m.source === "guest").length;
   // Track the open photo by id: background refreshes can prepend new memories.
   const openIndex = memories.findIndex((m) => m.id === openId);
+  const date = formatDate(folder.date);
 
   return (
-    <main className="mx-auto max-w-6xl px-5 pb-24 sm:px-10">
-      <nav className="pt-8">
-        <Link href="/memories" className="text-sm text-muted transition-colors hover:text-ink">
-          ← All folders
-        </Link>
-      </nav>
-
-      <header className="flex flex-col gap-8 border-b border-line pt-10 pb-10 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="eyebrow">{[folder.type, formatDate(folder.date)].filter(Boolean).join(" · ") || "Event folder"}</p>
-          <h1 className="mt-4 font-serif text-5xl leading-[1.05] sm:text-6xl">{folder.name}</h1>
-          <p className="mt-4 text-sm text-muted">
-            {memories.length} {memories.length === 1 ? "memory" : "memories"}
-            {memories.length > 0 && ` · ${guestCount} from guests · ${memories.length - guestCount} from you`}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <input ref={fileInput} type="file" accept="image/*" multiple className="hidden" onChange={uploadOwn} />
-          <button className="btn" onClick={() => fileInput.current?.click()} disabled={upload?.state === "busy"}>
-            Upload photos
-          </button>
-          <Link href={`/memories/${folder.id}/qr`} className="btn-ghost">
-            QR code
-          </Link>
-        </div>
-      </header>
-
-      {justCreated && memories.length === 0 && (
-        <section className="mt-10 flex flex-col gap-6 border border-ink p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-          <div>
-            <p className="eyebrow text-ink">Folder created</p>
-            <p className="mt-2 font-serif text-2xl">Next, make a QR code for {folder.name}.</p>
-            <p className="mt-1 text-sm text-muted">
-              Guests scan it, add their photos, and everything shows up in this folder.
+    <>
+      <AlbumBar title={folder.name} back={back} />
+      <main className="gutter pb-24">
+        <div className="container-wide">
+          <section className="rise-in py-10 text-center sm:py-14">
+            {date && <p className="t-label text-[10px] text-gold">{date}</p>}
+            <p className="t-lead mt-3 text-ink-muted">
+              {memories.length === 0
+                ? "Waiting for the first memory."
+                : `${memories.length} ${memories.length === 1 ? "memory" : "memories"} · ${guestCount} from guests · ${memories.length - guestCount} from you`}
             </p>
-          </div>
-          <Link href={`/memories/${folder.id}/qr`} className="btn shrink-0">
-            Generate QR code
-          </Link>
-        </section>
-      )}
-
-      {upload && (
-        <p role="status" className="mt-6 text-sm text-muted">
-          {upload.text}
-        </p>
-      )}
-
-      {memories.length === 0 ? (
-        !justCreated && (
-          <div className="py-24 text-center">
-            <p className="font-serif text-3xl italic">No memories yet.</p>
-            <p className="mt-3 text-sm text-muted">
-              Share the QR code with guests, or upload your own photos.
-            </p>
-          </div>
-        )
-      ) : (
-        <ul className="mt-10 columns-2 gap-4 sm:columns-3 sm:gap-6 lg:columns-4">
-          {memories.map((m) => (
-            <li key={m.id} className="mb-6 break-inside-avoid sm:mb-8">
-              <button type="button" onClick={() => setOpenId(m.id)} className="group block w-full text-left">
-                <div className="overflow-hidden bg-wash">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={m.photoUrl}
-                    alt={m.message ?? `Photo in ${folder.name}`}
-                    loading="lazy"
-                    className="w-full transition duration-500 group-hover:scale-[1.02]"
-                  />
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted">
-                  <span className="truncate">
-                    {m.source === "couple" ? "You" : (m.guestName ?? "Guest")}
-                    {m.message && " · note"}
-                    {m.voiceNoteUrl && " · voice"}
-                  </span>
-                  <Reactions reactions={m.reactions} compact />
-                </div>
-                {m.message && (
-                  <p className="mt-1 line-clamp-2 font-serif text-[17px] leading-snug italic">“{m.message}”</p>
-                )}
+            <LotusDivider className="mt-5" />
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <input ref={fileInput} type="file" accept="image/*" multiple className="hidden" onChange={uploadOwn} />
+              <button className="btn btn--maroon" onClick={() => fileInput.current?.click()} disabled={upload?.state === "busy"}>
+                <UploadIcon /> Upload photos
               </button>
-            </li>
-          ))}
-        </ul>
-      )}
+              <Link href={`/memories/${folder.id}/qr`} className="btn btn--ghost text-maroon">
+                <QrIcon /> QR code
+              </Link>
+            </div>
+            {upload && (
+              <p role="status" className={`mt-4 text-sm ${upload.state === "error" ? "text-maroon" : "text-ink-muted"}`}>
+                {upload.text}
+              </p>
+            )}
+          </section>
+
+          {justCreated && memories.length === 0 && (
+            <section className="card fade-in mx-auto mb-10 flex max-w-2xl flex-col gap-6 p-6 shadow-[0_24px_50px_-28px_rgba(72,20,31,0.55)] sm:flex-row sm:items-center sm:justify-between sm:p-8">
+              <div>
+                <p className="t-label text-[10px] text-gold">Album created</p>
+                <p className="mt-2 font-display text-2xl leading-snug text-maroon">Next, make the QR code for {folder.name}.</p>
+                <p className="mt-1 text-sm text-ink-muted">Guests scan it, add their photos, and every moment arrives in this album.</p>
+              </div>
+              <Link href={`/memories/${folder.id}/qr`} className="btn btn--gold shrink-0">
+                Generate QR code <ArrowRight />
+              </Link>
+            </section>
+          )}
+
+          {memories.length === 0 ? (
+            !justCreated && (
+              <SoftNotice title="No photos in this album yet">
+                <p>Share the QR code with your guests, or upload your own photos.</p>
+              </SoftNotice>
+            )
+          ) : (
+            <ul className="columns-2 gap-3 sm:gap-4 md:columns-3 lg:columns-4">
+              {memories.map((m, i) => (
+                <li key={m.id} className="fade-in mb-3 break-inside-avoid sm:mb-4" style={{ animationDelay: `${Math.min(i, 12) * 50}ms` }}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(m.id)}
+                    className="group relative block w-full overflow-hidden rounded-sm text-left ring-1 ring-gold/25 outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                    aria-label={`Open photo ${i + 1} of ${memories.length} — ${credit(m)}${m.message ? `: “${m.message}”` : ""}`}
+                  >
+                    <FadeImage src={m.photoUrl} alt="" wrapperClassName="min-h-32" className="block h-auto w-full transition-transform duration-700 ease-[var(--ease-silk)] group-hover:scale-[1.03]" />
+                    <TileBadges m={m} />
+                    <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-burgundy/85 via-burgundy/40 to-transparent px-3 pt-10 pb-2.5">
+                      {m.message && <span className="line-clamp-2 font-display text-[15px] leading-snug text-ivory italic">“{m.message}”</span>}
+                      <span className="mt-0.5 block text-[11px] text-ivory/80">{credit(m)}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </main>
 
       {openIndex >= 0 && (
         <MemoryViewer
@@ -169,6 +159,59 @@ export function FolderView({ folderId, justCreated }: { folderId: string; justCr
           onClose={() => setOpenId(undefined)}
         />
       )}
-    </main>
+    </>
+  );
+}
+
+/** Small chips on a tile: a note, a voice note, and the reactions guests gave. */
+function TileBadges({ m }: { m: Memory }) {
+  const reactions = Object.entries(m.reactions).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+  if (!m.message && !m.voiceNoteUrl && !reactions.length) return null;
+  const chip = "flex h-7 items-center gap-1 rounded-full bg-burgundy/75 px-2 text-[12px] text-ivory backdrop-blur-sm";
+  return (
+    <span className="pointer-events-none absolute top-2 left-2 flex flex-wrap gap-1.5">
+      {m.message && (
+        <span className={chip} title="Has a note">
+          <svg aria-hidden viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.3}>
+            <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
+          </svg>
+        </span>
+      )}
+      {m.voiceNoteUrl && (
+        <span className={chip} title="Has a voice note">
+          <svg aria-hidden viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={1.3}>
+            <rect x="6" y="2" width="4" height="8" rx="2" />
+            <path d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5V14" />
+          </svg>
+        </span>
+      )}
+      {reactions.length > 0 && (
+        <span className={chip}>
+          {reactions.slice(0, 3).map(([e]) => (
+            <span key={e} className="leading-none">{e}</span>
+          ))}
+          <span className="ml-0.5 text-ivory/80 tabular-nums">{reactions.reduce((n, [, c]) => n + c, 0)}</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 11V2M4.5 5.5 8 2l3.5 3.5M2.5 10.5v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2" />
+    </svg>
+  );
+}
+
+function QrIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.3}>
+      <rect x="2" y="2" width="4.5" height="4.5" />
+      <rect x="9.5" y="2" width="4.5" height="4.5" />
+      <rect x="2" y="9.5" width="4.5" height="4.5" />
+      <path d="M9.5 9.5h2v2h-2zM12 12h2v2h-2zM12 9.5h2M9.5 12v2" />
+    </svg>
   );
 }

@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { fetchFolder, submitMemories } from "../lib/api";
-import { prepareImage } from "../lib/media";
+import { formatDate, prepareImage } from "../lib/media";
 import { QUICK_REACTIONS } from "../lib/emoji";
 import type { Folder } from "../lib/types";
+import { wedding } from "../lib/wedding";
+import { ArchEdge, Ganesha, KolamTexture, LotusDivider } from "./art/Ornaments";
 import { EmojiPicker } from "./EmojiPicker";
 import { VoiceNoteInput } from "./VoiceNoteInput";
 
@@ -97,115 +99,149 @@ export function GuestUpload({ folderId }: { folderId: string }) {
     }
   }
 
-  if (folder === undefined) return <main className="min-h-dvh" />;
+  if (folder === undefined) return <main className="min-h-dvh bg-burgundy" />;
 
   if (folder === null) {
     return (
-      <Shell>
-        <h1 className="font-serif text-4xl leading-tight">This link isn&apos;t active.</h1>
-        <p className="mt-4 text-[15px] text-muted">
-          The memory folder may have been removed. Please check with the couple for the right QR code.
-        </p>
-      </Shell>
+      <>
+        <Cover eyebrow="Capture. Share. Relive." title="This link isn't active" />
+        <Body>
+          <p className="t-lead text-center text-ink-muted">
+            The album may have been removed. Please ask the family for the QR code at the celebration.
+          </p>
+        </Body>
+      </>
     );
   }
 
   if (phase === "sent") {
     return (
-      <Shell>
-        <p className="eyebrow">{folder.name}</p>
-        <h1 className="mt-4 font-serif text-5xl leading-[1.05]">Thank you.</h1>
-        <p className="mt-5 text-[15px] leading-relaxed text-muted">
-          {sentCount === 1 ? "Your memory has" : `Your ${sentCount} memories have`} been saved to the{" "}
-          <span className="text-ink">{folder.name}</span> album. The couple will see{" "}
-          {sentCount === 1 ? "it" : "them"} there.
-        </p>
-        <button className="btn mt-10 w-full" onClick={() => setPhase("compose")}>
-          Share more photos
-        </button>
-      </Shell>
+      <>
+        <Cover eyebrow={folder.name} title="Thank you" />
+        <Body>
+          <div className="fade-in text-center">
+            <p className="t-lead text-ink-muted">
+              {sentCount === 1 ? "Your memory is" : `Your ${sentCount} memories are`} now part of the{" "}
+              <span className="text-maroon not-italic">{folder.name}</span> album. The couple will treasure {sentCount === 1 ? "it" : "them"}.
+            </p>
+            <LotusDivider className="mt-8" />
+            <button className="btn btn--gold mt-8 w-full" onClick={() => setPhase("compose")}>
+              Share more photos
+            </button>
+          </div>
+        </Body>
+      </>
     );
   }
 
   const sending = phase === "sending";
+  const date = formatDate(folder.date);
 
   return (
-    <Shell>
-      <p className="eyebrow">{folder.name}</p>
-      <h1 className="mt-4 font-serif text-[44px] leading-[1.02]">Be Part of Their Memories</h1>
-      <p className="mt-4 text-[15px] leading-relaxed text-muted">
-        Add the photos you took at the {folder.name}. A note, a reaction or a voice message is welcome too, but completely optional.
-      </p>
+    <>
+      <Cover eyebrow="Capture. Share. Relive." title={folder.name} date={date} />
+      <Body>
+        <p className="t-lead text-center text-ink-muted">
+          Upload the beautiful moments you captured. A note, a reaction or a voice message is welcome too, but completely optional.
+        </p>
 
-      <input ref={picker} type="file" accept="image/*" multiple className="hidden" onChange={pick} />
+        <input ref={picker} type="file" accept="image/*" multiple className="hidden" onChange={pick} />
 
-      {drafts.length === 0 ? (
-        <button
-          type="button"
-          onClick={() => picker.current?.click()}
-          className="mt-10 flex aspect-square w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-faint text-center transition-colors hover:border-ink active:bg-wash"
-        >
-          <UploadIcon />
-          <span className="mt-5 font-serif text-3xl">Upload photos</span>
-          <span className="mt-2 px-6 text-sm text-muted">Tap to choose from your gallery · select as many as you like</span>
-        </button>
-      ) : (
-        <ol className="mt-10 space-y-12">
-          {drafts.map((d, i) => (
-            <li key={d.key}>
-              <DraftCard
-                draft={d}
-                index={i}
-                disabled={sending}
-                onChange={(patch) => update(d.key, patch)}
-                onRemove={() => remove(d.key)}
-              />
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {drafts.length > 0 && (
-        <>
+        {drafts.length === 0 ? (
           <button
             type="button"
-            className="mt-12 flex w-full items-center justify-center gap-3 rounded-xl border-2 border-dashed border-faint py-6 text-[15px] transition-colors hover:border-ink active:bg-wash disabled:opacity-40"
             onClick={() => picker.current?.click()}
-            disabled={sending || drafts.length >= MAX_PHOTOS}
+            className="group relative mt-9 flex aspect-[4/4.4] w-full flex-col items-center justify-center overflow-hidden rounded-[999px_999px_6px_6px] border-2 border-dashed border-gold/60 bg-ivory-deep/60 px-6 text-center transition-colors hover:border-gold active:bg-ivory-deep"
           >
-            <span className="grid h-8 w-8 place-items-center rounded-full border border-ink text-lg leading-none">+</span>
-            Add more photos
+            <span className="grid h-16 w-16 place-items-center rounded-full bg-maroon text-ivory shadow-[0_14px_30px_-14px_rgba(72,20,31,0.7)] transition-transform duration-300 group-hover:-translate-y-0.5">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                <path d="M12 16V4M7 9l5-5 5 5M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            <span className="mt-5 font-display text-[2rem] leading-none text-maroon">Choose your photos</span>
+            <span className="mt-3 text-sm text-ink-muted">From your gallery · as many as you like</span>
           </button>
-          <label className="mt-10 block">
-            <span className="eyebrow">Your name (optional)</span>
-            <input
-              value={name}
-              maxLength={60}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="So they know who it's from"
-              className="field mt-1"
-              autoComplete="name"
-            />
-          </label>
-        </>
-      )}
+        ) : (
+          <ol className="mt-9 space-y-10">
+            {drafts.map((d, i) => (
+              <li key={d.key} className="fade-in">
+                <DraftCard draft={d} index={i} disabled={sending} onChange={(patch) => update(d.key, patch)} onRemove={() => remove(d.key)} />
+              </li>
+            ))}
+          </ol>
+        )}
 
-      {error && (
-        <p role="alert" className="mt-6 text-sm text-ink">
-          {error}
+        {drafts.length > 0 && (
+          <>
+            <button
+              type="button"
+              className="mt-10 flex min-h-16 w-full items-center justify-center gap-3 rounded-sm border-2 border-dashed border-gold/55 text-[15px] text-maroon transition-colors hover:border-gold active:bg-ivory-deep disabled:opacity-40"
+              onClick={() => picker.current?.click()}
+              disabled={sending || drafts.length >= MAX_PHOTOS}
+            >
+              <span className="grid h-8 w-8 place-items-center rounded-full border border-maroon/40 text-lg leading-none">+</span>
+              Add more photos
+            </button>
+            <label className="mt-10 block">
+              <span className="t-label text-[10px] text-gold">Your name (optional)</span>
+              <input
+                value={name}
+                maxLength={60}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="So the couple knows who it's from"
+                className="field mt-1"
+                autoComplete="name"
+              />
+            </label>
+          </>
+        )}
+
+        {error && (
+          <p role="alert" className="mt-6 text-sm text-maroon">
+            {error}
+          </p>
+        )}
+
+        {drafts.length > 0 && (
+          <div className="sticky bottom-0 -mx-5 mt-10 border-t border-gold/30 bg-ivory/95 px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+            <button className="btn btn--gold w-full" onClick={submit} disabled={sending}>
+              {sending ? "Sending…" : "Share your photos"}
+              {!sending && <span className="rounded-full bg-burgundy/15 px-2 py-0.5 text-xs tabular-nums">{drafts.length}</span>}
+            </button>
+          </div>
+        )}
+      </Body>
+    </>
+  );
+}
+
+/** Burgundy cover: Ganesha, invocation, the couple, the event, a lotus, and an arch edge. */
+function Cover({ eyebrow, title, date }: { eyebrow: string; title: string; date?: string }) {
+  return (
+    <header className="relative bg-burgundy px-5 pt-10 pb-14 text-center text-ivory">
+      <KolamTexture className="opacity-[0.07]" id="kolam-guest" />
+      <div className="rise-in relative mx-auto max-w-md">
+        <Ganesha className="h-14" />
+        <p className="mt-3 font-display text-[15px] text-gold-muted italic">{wedding.invocation}</p>
+        <p className="mt-6 font-display text-[1.35rem] leading-tight text-ivory/90">
+          {wedding.groom.name} <span className="text-gold italic">&amp;</span> {wedding.bride.name}
         </p>
-      )}
+        <p className="t-label mt-7 text-[10px] text-gold">{eyebrow}</p>
+        <h1 className="mt-3 font-display text-[clamp(2.6rem,2rem+3vw,3.4rem)] leading-[1.02] text-ivory">{title}</h1>
+        {date && <p className="mt-2 font-display text-lg text-ivory/70 italic">{date}</p>}
+        <LotusDivider className="mt-6" />
+      </div>
+      <ArchEdge color="var(--burgundy)" />
+    </header>
+  );
+}
 
-      {drafts.length > 0 && (
-        <div className="sticky bottom-0 -mx-5 mt-10 border-t border-line bg-paper/95 px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
-          <button className="btn w-full" onClick={submit} disabled={sending}>
-            {sending
-              ? "Sending…"
-              : `Share ${drafts.length} ${drafts.length === 1 ? "photo" : "photos"}`}
-          </button>
-        </div>
-      )}
-    </Shell>
+function Body({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="mx-auto min-h-[60dvh] max-w-md px-5 pt-12 pb-10">
+      {children}
+      <p className="t-label mt-16 text-center text-[9px] text-gold">Every Moment, A Memory</p>
+    </main>
   );
 }
 
@@ -226,9 +262,7 @@ function DraftCard({
 
   function toggle(emoji: string) {
     onChange({
-      reactions: draft.reactions.includes(emoji)
-        ? draft.reactions.filter((e) => e !== emoji)
-        : [...draft.reactions, emoji],
+      reactions: draft.reactions.includes(emoji) ? draft.reactions.filter((e) => e !== emoji) : [...draft.reactions, emoji],
     });
   }
 
@@ -236,29 +270,32 @@ function DraftCard({
   const extras = draft.reactions.filter((e) => !QUICK_REACTIONS.includes(e));
 
   return (
-    <fieldset disabled={disabled} className="min-w-0">
+    <fieldset disabled={disabled} className="card min-w-0 p-4 shadow-[0_24px_50px_-34px_rgba(72,20,31,0.55)]">
       <div className="flex items-center justify-between pb-3">
-        <span className="text-xs text-muted tabular-nums">Photo {index + 1}</span>
-        <button type="button" onClick={onRemove} className="link text-muted">
+        <span className="t-label text-[10px] text-gold">Photo {index + 1}</span>
+        <button type="button" onClick={onRemove} className="link text-sm">
           Remove
         </button>
       </div>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={draft.preview} alt={`Selected photo ${index + 1}`} className="max-h-[70vh] w-full bg-wash object-contain" />
+      {/* Polaroid-style print */}
+      <div className="bg-white p-[3%] pb-[6%] shadow-[0_12px_26px_-14px_rgba(72,20,31,0.5)]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={draft.preview} alt={`Selected photo ${index + 1}`} className="max-h-[62vh] w-full bg-ivory-deep object-contain" />
+      </div>
 
       <textarea
         value={draft.message}
         onChange={(e) => onChange({ message: e.target.value })}
         maxLength={1000}
         rows={2}
-        placeholder="Write a note (optional)"
-        className="field mt-4 resize-none font-serif text-lg"
+        placeholder="Write a note for the couple (optional)"
+        className="field mt-4 resize-none font-display text-xl text-maroon italic"
       />
 
       <div className="mt-6">
         <div className="flex items-baseline justify-between">
-          <p className="eyebrow">React</p>
-          <p className="text-xs text-muted" aria-live="polite">
+          <p className="t-label text-[10px] text-gold">React</p>
+          <p className="text-xs text-ink-muted" aria-live="polite">
             {draft.reactions.length ? `${draft.reactions.join(" ")} added` : "Tap to add"}
           </p>
         </div>
@@ -273,12 +310,12 @@ function DraftCard({
                 aria-label={`${on ? "Remove" : "Add"} ${emoji}`}
                 onClick={() => toggle(emoji)}
                 className={`relative grid h-11 w-11 place-items-center rounded-full text-[22px] transition duration-150 active:scale-90 ${
-                  on ? "scale-105 bg-ink/[0.07] ring-2 ring-ink" : "ring-1 ring-line"
+                  on ? "scale-105 bg-gold/15 ring-2 ring-maroon" : "bg-ivory ring-1 ring-gold/35"
                 }`}
               >
                 {emoji}
                 {on && (
-                  <span className="absolute -top-1 -right-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-ink text-paper ring-2 ring-paper">
+                  <span className="absolute -top-1 -right-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-maroon text-ivory ring-2 ring-ivory">
                     <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden>
                       <path d="M1.5 5.2l2.3 2.3 4.7-5" stroke="currentColor" strokeWidth="1.6" fill="none" />
                     </svg>
@@ -291,7 +328,7 @@ function DraftCard({
             type="button"
             onClick={() => setPicking(true)}
             aria-label="More emoji"
-            className="grid h-11 w-11 place-items-center rounded-full border border-dashed border-faint text-xl text-muted transition hover:border-ink hover:text-ink"
+            className="grid h-11 w-11 place-items-center rounded-full border border-dashed border-gold/70 text-xl text-maroon transition hover:border-maroon"
           >
             +
           </button>
@@ -302,31 +339,7 @@ function DraftCard({
         <VoiceNoteInput value={draft.voiceNote} onChange={(voiceNote) => onChange({ voiceNote })} />
       </div>
 
-      <EmojiPicker
-        open={picking}
-        selected={draft.reactions}
-        onPick={toggle}
-        onClose={() => setPicking(false)}
-      />
+      <EmojiPicker open={picking} selected={draft.reactions} onPick={toggle} onClose={() => setPicking(false)} />
     </fieldset>
-  );
-}
-
-function UploadIcon() {
-  return (
-    <span className="grid h-16 w-16 place-items-center rounded-full bg-ink text-paper">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-        <path d="M12 16V4M7 9l5-5 5 5M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </span>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main className="mx-auto min-h-dvh max-w-md px-5 pt-12 pb-10">
-      {children}
-      <p className="mt-16 text-center text-[11px] tracking-[0.18em] text-faint uppercase">Wedding Memories</p>
-    </main>
   );
 }

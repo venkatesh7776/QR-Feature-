@@ -24,17 +24,17 @@ export async function prepareImage(file: File, maxSide = 2000): Promise<Blob> {
   }
 }
 
+/** "18 November 2026", as the invitation writes dates. */
 export function formatDate(iso?: string) {
   if (!iso) return "";
-  const date = iso.length === 10 ? new Date(`${iso}T00:00:00`) : new Date(iso);
-  return date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return "";
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(Date.UTC(y, m - 1, d));
 }
 
+/** "18 Nov, 7:42 pm" in IST, where the wedding happens. */
 export function formatTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })
+    .format(new Date(iso))
+    .replace(/\s?([ap])\.?m\.?/i, (_, x: string) => ` ${x.toLowerCase()}m`);
 }

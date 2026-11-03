@@ -1,30 +1,39 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Instrument_Serif } from "next/font/google";
+import { Cormorant_Garamond, Inter, Noto_Serif_Devanagari } from "next/font/google";
+import { coupleShort } from "@/features/memories/lib/wedding";
 import "./globals.css";
 
-const serif = Instrument_Serif({
-  weight: "400",
-  style: ["normal", "italic"],
+const display = Cormorant_Garamond({
+  variable: "--font-display",
   subsets: ["latin"],
-  variable: "--font-instrument-serif",
+  weight: ["300", "400", "500", "600"],
+  style: ["normal", "italic"],
+  display: "swap",
 });
 
-const sans = Geist({ subsets: ["latin"], variable: "--font-geist" });
+const body = Inter({ variable: "--font-body", subsets: ["latin"], display: "swap" });
+
+const devanagari = Noto_Serif_Devanagari({
+  variable: "--font-devanagari",
+  subsets: ["devanagari"],
+  weight: ["400", "500"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "Wedding Memories",
-  description: "Collect photos, notes and voice messages from your guests, event by event.",
+  title: `Wedding Memories · ${coupleShort}`,
+  description: "Every moment, a memory. Photos, notes and voice messages from our guests, event by event.",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#ffffff",
+  themeColor: "#48141F",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${serif.variable} ${sans.variable}`}>
+    <html lang="en" className={`${display.variable} ${body.variable} ${devanagari.variable} antialiased`}>
       <body>{children}</body>
     </html>
   );

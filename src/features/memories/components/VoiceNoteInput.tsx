@@ -109,7 +109,7 @@ export function VoiceNoteInput({
   const attachButton = (
     <>
       <input ref={fileInput} type="file" accept="audio/*" className="hidden" onChange={attach} />
-      <button type="button" className="link text-muted" onClick={() => fileInput.current?.click()}>
+      <button type="button" className="link text-sm" onClick={() => fileInput.current?.click()}>
         Attach an audio file instead
       </button>
     </>
@@ -118,15 +118,15 @@ export function VoiceNoteInput({
   if (value) {
     return (
       <div>
-        <p className="eyebrow mb-2">Your voice note</p>
+        <p className="t-label mb-2 text-[10px] text-gold">Your voice note</p>
         <VoicePlayer src={value} fallbackSeconds={seconds} />
         <div className="mt-2 flex gap-5">
           {supported && (
-            <button type="button" className="link text-muted" onClick={() => { onChange(undefined); start(); }}>
+            <button type="button" className="link text-sm" onClick={() => { onChange(undefined); start(); }}>
               Record again
             </button>
           )}
-          <button type="button" className="link text-muted" onClick={() => onChange(undefined)}>
+          <button type="button" className="link text-sm" onClick={() => onChange(undefined)}>
             Delete
           </button>
         </div>
@@ -136,27 +136,27 @@ export function VoiceNoteInput({
 
   if (status === "recording") {
     return (
-      <div className="flex items-center gap-4 border border-ink px-4 py-3" role="status" aria-live="polite">
+      <div className="flex items-center gap-4 rounded-sm border border-maroon/60 bg-ivory px-4 py-3" role="status" aria-live="polite">
         <button
           type="button"
           onClick={() => stop()}
           aria-label="Stop recording"
-          className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-ink"
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-maroon"
         >
-          <span className="h-4 w-4 rounded-[3px] bg-paper" />
+          <span className="h-4 w-4 rounded-[3px] bg-ivory" />
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex h-7 items-center gap-[3px]" aria-hidden>
             {levels.map((l, i) => (
-              <span key={i} className="w-[3px] flex-1 rounded-full bg-ink transition-[height] duration-75" style={{ height: `${Math.max(12, l * 100)}%` }} />
+              <span key={i} className="w-[3px] flex-1 rounded-full bg-gold transition-[height] duration-75" style={{ height: `${Math.max(12, l * 100)}%` }} />
             ))}
           </div>
-          <p className="mt-1 flex items-center gap-2 text-xs text-muted tabular-nums">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#d33]" />
-            Recording {clock(seconds)} <span className="text-faint">of {clock(MAX_SECONDS)}</span>
+          <p className="mt-1 flex items-center gap-2 text-xs text-ink-muted tabular-nums">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-maroon" />
+            Recording {clock(seconds)} <span className="opacity-60">of {clock(MAX_SECONDS)}</span>
           </p>
         </div>
-        <button type="button" className="link shrink-0 text-muted" onClick={() => stop(true)}>
+        <button type="button" className="link shrink-0 text-sm" onClick={() => stop(true)}>
           Cancel
         </button>
       </div>
@@ -169,27 +169,27 @@ export function VoiceNoteInput({
         type="button"
         onClick={supported ? start : () => fileInput.current?.click()}
         disabled={status === "starting"}
-        className="flex w-full items-center gap-4 border border-line px-4 py-3 text-left transition-colors hover:border-ink active:bg-wash"
+        className="flex w-full items-center gap-4 rounded-sm border border-gold/45 bg-ivory px-4 py-3 text-left transition-colors hover:border-gold active:bg-ivory-deep"
       >
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-ink text-paper">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gold text-burgundy">
           <MicIcon />
         </span>
         <span className="min-w-0">
-          <span className="block text-[15px]">
+          <span className="block text-[15px] text-maroon">
             {status === "starting" ? "Allow the microphone…" : supported ? "Record a voice note" : "Add a voice note"}
           </span>
-          <span className="block text-xs text-muted">
+          <span className="block text-xs text-ink-muted">
             {supported ? "Tap and start talking · up to 1 minute" : "Choose a voice memo from your phone"}
           </span>
         </span>
       </button>
       <div className="mt-2">{attachButton}</div>
       {!supported && !error && (
-        <p className="mt-1.5 text-xs text-faint">
+        <p className="mt-1.5 text-xs text-ink-muted">
           Live recording needs a secure (https) link. This page was opened without one.
         </p>
       )}
-      {error && <p className="mt-1.5 text-xs text-ink">{error}</p>}
+      {error && <p className="mt-1.5 text-xs text-maroon">{error}</p>}
     </div>
   );
 }
