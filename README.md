@@ -37,7 +37,7 @@ reach the app while the tunnel runs; stop it with Ctrl+C.
 
 ## Deployment (Vercel)
 
-Live at **https://wedding-memories-iota.vercel.app** (project `wedding-memories`).
+Live at **https://murali-varshitha-memories.vercel.app** (project `wedding-memories`). The older address https://wedding-memories-iota.vercel.app stays attached so cards printed with it keep working. `SHARE_ORIGIN` decides which address new QR cards use.
 
 ```bash
 vercel env add SUPABASE_URL production
