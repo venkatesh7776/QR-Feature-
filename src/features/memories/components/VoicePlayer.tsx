@@ -13,6 +13,7 @@ export function VoicePlayer({ src, fallbackSeconds = 0, tone = "light" }: { src:
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (typeof src === "string") return setUrl(src);
@@ -25,25 +26,25 @@ export function VoicePlayer({ src, fallbackSeconds = 0, tone = "light" }: { src:
     setPlaying(false);
     setTime(0);
     setDuration(0);
+    setFailed(false);
   }, [url]);
 
-  function onMeta() {
-    const el = audio.current!;
-    if (Number.isFinite(el.duration)) return setDuration(el.duration);
-    // Recorded webm often reports Infinity until it has been scanned once.
-    const fix = () => {
-      el.removeEventListener("timeupdate", fix);
-      if (Number.isFinite(el.duration)) setDuration(el.duration);
-      el.currentTime = 0;
-    };
-    el.addEventListener("timeupdate", fix);
-    el.currentTime = 1e7;
-  }
+  // Recordings from phones (WebM from Chrome) often report an unknown length
+  // until they've been played once. Show the recorded length meanwhile and pick
+  // up the real one when the browser learns it — never seek to find it, which
+  // can leave playback stuck at the end on some phones.
+  const learnDuration = (el: HTMLAudioElement) => Number.isFinite(el.duration) && el.duration > 0 && setDuration(el.duration);
 
   function toggle() {
-    const el = audio.current!;
-    if (el.paused) el.play().catch(() => setPlaying(false));
-    else el.pause();
+    const el = audio.current;
+    if (!el) return;
+    if (!el.paused) return el.pause();
+    if (el.ended || (Number.isFinite(el.duration) && el.currentTime >= el.duration - 0.05)) el.currentTime = 0;
+    setFailed(false);
+    el.play().catch(() => {
+      setPlaying(false);
+      setFailed(true);
+    });
   }
 
   const total = duration || fallbackSeconds;
@@ -67,7 +68,7 @@ export function VoicePlayer({ src, fallbackSeconds = 0, tone = "light" }: { src:
           <div className="h-full rounded-full bg-gold transition-[width] duration-200" style={{ width: `${progress * 100}%` }} />
         </div>
         <p className={`mt-1.5 text-[11px] tabular-nums ${dark ? "text-ivory/60" : "text-ink-muted"}`}>
-          {total ? `${clock(playing || time ? time : 0)} / ${clock(total)}` : "Voice note"}
+          {failed ? "Couldn't play this recording here" : total ? `${clock(playing || time ? time : 0)} / ${clock(total)}` : playing ? clock(time) : "Voice note"}
         </p>
       </div>
       {url && (
@@ -75,16 +76,21 @@ export function VoicePlayer({ src, fallbackSeconds = 0, tone = "light" }: { src:
           ref={audio}
           src={url}
           preload="metadata"
-          onLoadedMetadata={onMeta}
+          onLoadedMetadata={(e) => learnDuration(e.currentTarget)}
+          onDurationChange={(e) => learnDuration(e.currentTarget)}
+          onError={() => setFailed(true)}
           onPlay={() => setPlaying(true)}
+          onPlaying={() => setFailed(false)}
           onPause={() => setPlaying(false)}
-          onEnded={() => {
+          onEnded={(e) => {
+            learnDuration(e.currentTarget);
             setPlaying(false);
             setTime(0);
           }}
           onTimeUpdate={(e) => {
-            const t = e.currentTarget.currentTime;
-            if (t < 1e6) setTime(t);
+            setTime(e.currentTarget.currentTime);
+            // Some browsers report a spurious error while still playing fine.
+            if (e.currentTarget.currentTime > 0) setFailed(false);
           }}
           className="hidden"
         />
