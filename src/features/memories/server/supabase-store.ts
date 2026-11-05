@@ -1,15 +1,15 @@
 import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Folder, FolderSummary, Memory, Reactions } from "../lib/types";
+import { r2Configured, r2Files, supabaseFiles, type FileStore } from "./file-store";
 import { contentTypeFor, fileUrl, isSafeFileRef, shortId, storedName, type NewMemory, type StoredFile } from "./shared";
 
 /**
- * Permanent persistence: records in Supabase Postgres, photos and voice notes
- * in a private Supabase Storage bucket. Schema: supabase/migrations.
+ * Permanent persistence: records in Supabase Postgres (schema:
+ * supabase/migrations); photos and voice notes in Cloudflare R2 when it is
+ * configured, otherwise in the private Supabase Storage bucket.
  * Uses the service-role key, so this must only ever run on the server.
  */
-
-const BUCKET = "memories";
 
 export function isConfigured() {
   return !!(supabaseUrl() && serviceKey());
@@ -83,6 +83,15 @@ function toMemory(r: MemoryRow): Memory {
   };
 }
 
+let fileStore: FileStore | undefined;
+function files() {
+  fileStore ??= r2Configured() ? r2Files() : supabaseFiles(db);
+  return fileStore;
+}
+
+/** Which store holds the photos, for diagnostics. */
+export const fileBackend = () => files().kind;
+
 function check<T>({ data, error }: { data: T | null; error: { message: string } | null }): T {
   if (error) throw new Error(`Supabase: ${error.message}`);
   return data as T;
@@ -143,12 +152,7 @@ export async function addMemories(folderId: string, items: NewMemory[]) {
   const uploaded: string[] = [];
   const upload = async (name: string, file: File) => {
     const path = `${folderId}/${name}`;
-    check(
-      await db().storage.from(BUCKET).upload(path, file, {
-        contentType: contentTypeFor(name),
-        upsert: false,
-      }),
-    );
+    await files().put(path, file, contentTypeFor(name));
     uploaded.push(path);
     return name;
   };
@@ -178,7 +182,7 @@ export async function addMemories(folderId: string, items: NewMemory[]) {
     return saved.map(toMemory);
   } catch (err) {
     // Don't leave orphaned files behind if any part of the batch failed.
-    if (uploaded.length) await db().storage.from(BUCKET).remove(uploaded);
+    if (uploaded.length) await files().remove(uploaded).catch(() => undefined);
     throw err;
   }
 }
@@ -201,7 +205,7 @@ export async function deleteMemory(memoryId: string) {
   );
   if (!row) return false;
   const paths = [row.photo_name, row.voice_name].filter((n): n is string => !!n).map((n) => `${row.folder_id}/${n}`);
-  if (paths.length) check(await db().storage.from(BUCKET).remove(paths));
+  await files().remove(paths);
   check(await db().from("memories").delete().eq("id", memoryId));
   return true;
 }
@@ -209,20 +213,14 @@ export async function deleteMemory(memoryId: string) {
 /** Removes a folder: every file under it in Storage, then the folder (its memories cascade). */
 export async function deleteFolder(folderId: string) {
   if (!(await getFolder(folderId))) return false;
-  // Storage lists at most `limit` objects per call, so remove in pages.
-  for (;;) {
-    const files = check(await db().storage.from(BUCKET).list(folderId, { limit: 1000 }));
-    if (!files.length) break;
-    check(await db().storage.from(BUCKET).remove(files.map((f) => `${folderId}/${f.name}`)));
-    if (files.length < 1000) break;
-  }
+  await files().removeFolder(folderId);
   check(await db().from("memory_folders").delete().eq("id", folderId));
   return true;
 }
 
 // ---- Direct browser uploads -------------------------------------------------
 // Serverless hosts cap request bodies (~4.5 MB on Vercel), so in production the
-// browser uploads each file straight to Storage with a one-time signed URL and
+// browser uploads each file straight to storage with a one-time signed URL and
 // then posts only the small JSON metadata.
 
 export interface UploadPlan {
@@ -233,21 +231,17 @@ export interface UploadPlan {
 
 export async function planUploads(
   folderId: string,
-  files: { photo: string; voice?: string }[],
+  requests: { photo: string; voice?: string }[],
 ): Promise<UploadPlan[]> {
-  const sign = async (name: string) => {
-    const { signedUrl } = check(
-      await db().storage.from(BUCKET).createSignedUploadUrl(`${folderId}/${name}`),
-    );
-    return { name, url: signedUrl };
-  };
+  // The browser must send exactly this Content-Type when it PUTs the file.
+  const sign = async (name: string, type: string) => ({ name, url: await files().signedUploadUrl(`${folderId}/${name}`, type) });
   return Promise.all(
-    files.map(async (f) => {
+    requests.map(async (f) => {
       const id = shortId();
       return {
         id,
-        photo: await sign(storedName(`${id}-photo`, f.photo)),
-        voice: f.voice ? await sign(storedName(`${id}-voice`, f.voice)) : undefined,
+        photo: await sign(storedName(`${id}-photo`, f.photo), f.photo),
+        voice: f.voice ? await sign(storedName(`${id}-voice`, f.voice), f.voice) : undefined,
       };
     }),
   );
@@ -276,8 +270,7 @@ export async function addUploadedMemories(
       if (!name.startsWith(`${item.id}-${kind}.`) || !isSafeFileRef(folderId, name)) {
         throw new Error("Invalid upload reference");
       }
-      const { data: found } = await db().storage.from(BUCKET).exists(`${folderId}/${name}`);
-      if (!found) throw new Error("An upload didn't finish. Please try again.");
+      if (!(await files().exists(`${folderId}/${name}`))) throw new Error("An upload didn't finish. Please try again.");
     }
   }
 
@@ -310,9 +303,6 @@ const SIGNED_URL_SECONDS = 60 * 60;
 /** Sends the browser to a short-lived signed URL instead of proxying bytes. */
 export async function getFile(folderId: string, name: string): Promise<StoredFile | undefined> {
   if (!isSafeFileRef(folderId, name)) return undefined;
-  const { data, error } = await db()
-    .storage.from(BUCKET)
-    .createSignedUrl(`${folderId}/${name}`, SIGNED_URL_SECONDS);
-  if (error || !data) return undefined;
-  return { redirect: data.signedUrl };
+  const url = await files().signedReadUrl(`${folderId}/${name}`, SIGNED_URL_SECONDS);
+  return url ? { redirect: url } : undefined;
 }

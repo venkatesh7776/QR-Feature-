@@ -116,7 +116,7 @@ interface UploadPlan {
 async function putFile(url: string, blob: Blob) {
   const res = await fetch(url, {
     method: "PUT",
-    headers: { "Content-Type": blob.type || "image/jpeg", "x-upsert": "false" },
+    headers: { "Content-Type": blob.type || "image/jpeg" },
     body: blob,
   });
   if (!res.ok) throw new Error(`Upload failed (${res.status})`);

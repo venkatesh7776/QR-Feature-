@@ -102,6 +102,20 @@ Everything lives in `src/features/memories/` so it can be moved into the main we
 
 ## Storage
 
+**Photos and voice notes: Cloudflare R2.** When `R2_ACCOUNT_ID`,
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_BUCKET` are set, files live
+in the private R2 bucket `murali-varshitha-memories` (keys `<folderId>/<name>`).
+Guests' browsers upload straight to R2 with one-time presigned URLs (the
+bucket's CORS rules allow the app's addresses), and photos are served through
+`/api/memories/files/...`, which redirects to a short-lived presigned R2 link.
+`npm run migrate:r2` copies anything still in Supabase Storage to R2 (safe to
+re-run). Without the R2 settings, files fall back to Supabase Storage.
+`server/file-store.ts` holds both implementations.
+
+**Records: Supabase Postgres** (albums, notes, reactions, names), as below.
+
+### Records
+
 **Supabase (permanent, the default when configured).** Put `SUPABASE_URL` and
 `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (see `.env.example`). Then:
 - Records go into Postgres: `memory_folders` and `memories`, with RLS on and no

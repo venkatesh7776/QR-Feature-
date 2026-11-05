@@ -9,9 +9,12 @@
     "demo": "next build && next start -H 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "share": "node scripts/share.mjs",
-    "migrate:supabase": "node --env-file=.env.local scripts/migrate-local-to-supabase.mjs"
+    "migrate:supabase": "node --env-file=.env.local scripts/migrate-local-to-supabase.mjs",
+    "migrate:r2": "node --env-file=.env.local scripts/migrate-files-to-r2.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1162.0",
+    "@aws-sdk/s3-request-presigner": "^3.1162.0",
     "@supabase/supabase-js": "^2.118.0",
     "next": "16.4.3",
     "qrcode": "1.5.4",
@@ -27,6 +30,7 @@
     "@types/react-dom": "^19",
     "cloudflared": "^0.7.3",
     "tailwindcss": "4.3.3",
-    "typescript": "^5.7"
+    "typescript": "^5.7",
+    "wrangler": "^4.158.0"
   }
 }
