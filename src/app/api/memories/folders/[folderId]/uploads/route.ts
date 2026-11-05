@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const MAX_ITEMS = 30;
 
 /**
- * Step 1 of a submission. With Supabase, returns one-time signed URLs so the
+ * Step 1 of a submission. With Cloudflare R2, returns one-time signed URLs so the
  * browser can upload files directly (bypassing serverless body limits).
  * Locally, tells the client to send everything inline as multipart.
  */

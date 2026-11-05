@@ -40,20 +40,17 @@ reach the app while the tunnel runs; stop it with Ctrl+C.
 Live at **https://murali-varshitha-memories.vercel.app** (project `wedding-memories`). The older address https://wedding-memories-iota.vercel.app stays attached so cards printed with it keep working. `SHARE_ORIGIN` decides which address new QR cards use.
 
 ```bash
-vercel env add SUPABASE_URL production
-vercel env add SUPABASE_SERVICE_ROLE_KEY production --sensitive
+# once per setting listed in .env.example, e.g.
+vercel env add CLOUDFLARE_API_TOKEN production --sensitive
 vercel deploy --prod
 ```
 
-QR codes made on the live site point to the live site automatically. Vercel
-installs dependencies from `package-lock.json`, and `.vercelignore` keeps
-`.env.local` and `.data/` out of uploads.
+Vercel installs dependencies from `package-lock.json`, and `.vercelignore`
+keeps `.env.local` and `.data/` out of uploads.
 
-Vercel limits request bodies to about 4.5 MB, so with Supabase the browser
-uploads each photo and voice note **directly to Storage** using one-time signed
-URLs (`POST /api/memories/folders/[id]/uploads`), then posts only the metadata.
-Photos are served through `/api/memories/files/...`, which redirects to a
-short-lived signed Storage URL.
+Vercel limits request bodies to about 4.5 MB, so the browser uploads each
+photo and voice note **directly to R2** using one-time signed URLs
+(`POST /api/memories/folders/[id]/uploads`), then posts only the metadata.
 
 ## Look and feel
 
@@ -102,38 +99,26 @@ Everything lives in `src/features/memories/` so it can be moved into the main we
 
 ## Storage
 
-**Photos and voice notes: Cloudflare R2.** When `R2_ACCOUNT_ID`,
-`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_BUCKET` are set, files live
-in the private R2 bucket `murali-varshitha-memories` (keys `<folderId>/<name>`).
-Guests' browsers upload straight to R2 with one-time presigned URLs (the
-bucket's CORS rules allow the app's addresses), and photos are served through
-`/api/memories/files/...`, which redirects to a short-lived presigned R2 link.
-`npm run migrate:r2` copies anything still in Supabase Storage to R2 (safe to
-re-run). Without the R2 settings, files fall back to Supabase Storage.
-`server/file-store.ts` holds both implementations.
+Everything lives on Cloudflare:
 
-**Records: Supabase Postgres** (albums, notes, reactions, names), as below.
+- **Records** (albums, notes, reactions, guest names) in the D1 database
+  `murali-varshitha-memories`. Schema: `db/schema.sql`. The app reaches D1
+  through Cloudflare's HTTP API with `CLOUDFLARE_API_TOKEN` (D1 Edit).
+- **Photos and voice notes** in the private R2 bucket
+  `murali-varshitha-memories`, keyed `<folderId>/<name>`. Guests' browsers
+  upload straight to R2 with one-time presigned URLs (the bucket's CORS rules
+  allow the app's addresses), and photos are served through
+  `/api/memories/files/...`, which redirects to a short-lived presigned link.
 
-### Records
+Settings are listed in `.env.example`. Without them, data is kept locally in
+`.data/` on the machine running the server, which is fine for development.
 
-**Supabase (permanent, the default when configured).** Put `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (see `.env.example`). Then:
-- Records go into Postgres: `memory_folders` and `memories`, with RLS on and no
-  public policies, so only the server's secret key can read or write them.
-- Photos and voice notes go into the private `memories` Storage bucket under
-  `<folderId>/`. The app streams them through `/api/memories/files/...`.
-- The schema is in `supabase/migrations/`. Run it once in the Supabase SQL Editor for a new project.
-- `npm run migrate:supabase` copies anything in the local `.data/` folder into Supabase. It's safe to re-run.
+All storage code is in `src/features/memories/server/`: `cloud-store.ts`
+(D1 + R2), `file-store.ts` (R2), `local-store.ts`, and `store.ts`, which picks
+one.
 
-**Local fallback.** Without those env vars, data is kept in `.data/` on the
-machine running the server. That's fine for a quick demo, but it's one disk
-with no backups.
-
-On Supabase's free plan, projects pause after about a week without activity.
-The data is kept, and you restore the project from the dashboard.
-
-All storage code is in `src/features/memories/server/` (`store.ts` picks the
-backend), so moving to another provider means writing one more store file.
+To set up a new database: `npx wrangler d1 create <name>` then
+`npx wrangler d1 execute <name> --remote --file db/schema.sql`.
 
 ## Voice notes
 

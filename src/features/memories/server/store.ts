@@ -1,21 +1,22 @@
 import "server-only";
+import * as cloud from "./cloud-store";
 import * as local from "./local-store";
-import * as supabase from "./supabase-store";
 
 /**
- * The storage backend for Wedding Memories. Supabase (permanent, shared) when
- * SUPABASE_URL and a service key are set; otherwise local files in `.data/`.
+ * The storage backend for Wedding Memories: Cloudflare (D1 for records, R2 for
+ * photos and voice notes) when its settings are present; otherwise local files
+ * in `.data/`, which is handy for development.
  */
-const useSupabase = supabase.isConfigured();
+const useCloud = cloud.isConfigured();
 
-if (!useSupabase && process.env.VERCEL) {
+if (!useCloud && process.env.VERCEL) {
   // Serverless disks are wiped between requests, so local storage would lose data.
-  throw new Error("Wedding Memories: set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on Vercel.");
+  throw new Error("Wedding Memories: set the Cloudflare D1 and R2 settings on Vercel.");
 }
 
-const backend = useSupabase ? supabase : local;
+const backend = useCloud ? cloud : local;
 
-export const storageBackend = useSupabase ? "supabase" : "local";
+export const storageBackend = useCloud ? "cloudflare" : "local";
 
 export const {
   listFolders,
@@ -29,9 +30,9 @@ export const {
   getFile,
 } = backend;
 
-/** Supabase only: browser uploads files directly, then posts metadata. */
-export const directUploads = useSupabase;
-export const { planUploads, addUploadedMemories } = supabase;
+/** Cloudflare only: the browser uploads files directly to R2, then posts metadata. */
+export const directUploads = useCloud;
+export const { planUploads, addUploadedMemories } = cloud;
 
 export type { NewMemory, StoredFile } from "./shared";
-export type { UploadPlan, UploadedMemory } from "./supabase-store";
+export type { UploadPlan, UploadedMemory } from "./cloud-store";

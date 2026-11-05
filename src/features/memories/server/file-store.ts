@@ -8,20 +8,16 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Where photos and voice notes live, behind one small interface. Records
- * (albums, notes, reactions) stay in Postgres either way; only the files move.
- *
- * - Cloudflare R2 when R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
- *   and R2_BUCKET are set (S3-compatible API, private bucket, presigned URLs).
- * - Otherwise the private Supabase Storage bucket "memories".
+ * Photos and voice notes in Cloudflare R2, through its S3-compatible API:
+ * a private bucket, presigned upload and download URLs. Configured by
+ * R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET.
  *
  * Paths are always `<folderId>/<file name>`.
  */
 export interface FileStore {
-  kind: "r2" | "supabase";
+  kind: "r2";
   /** Server-side upload (multipart submissions). */
   put(path: string, body: Blob, contentType: string): Promise<void>;
   /** One-time URL the browser PUTs the file to, with this exact Content-Type. */
@@ -85,41 +81,6 @@ export function r2Files(): FileStore {
         if (!keys.length) break;
         await this.remove(keys);
         if (!page.IsTruncated) break;
-      }
-    },
-  };
-}
-
-export function supabaseFiles(db: () => SupabaseClient): FileStore {
-  const bucket = () => db().storage.from("memories");
-  const ok = <T>({ data, error }: { data: T | null; error: { message: string } | null }) => {
-    if (error) throw new Error(`Supabase Storage: ${error.message}`);
-    return data as T;
-  };
-  return {
-    kind: "supabase",
-    async put(path, body, contentType) {
-      ok(await bucket().upload(path, body, { contentType, upsert: false }));
-    },
-    async signedUploadUrl(path) {
-      return ok(await bucket().createSignedUploadUrl(path)).signedUrl;
-    },
-    async exists(path) {
-      return !!(await bucket().exists(path)).data;
-    },
-    async signedReadUrl(path, seconds) {
-      const { data, error } = await bucket().createSignedUrl(path, seconds);
-      return error || !data ? undefined : data.signedUrl;
-    },
-    async remove(paths) {
-      if (paths.length) ok(await bucket().remove(paths));
-    },
-    async removeFolder(prefix) {
-      for (;;) {
-        const files = ok(await bucket().list(prefix, { limit: 1000 }));
-        if (!files.length) break;
-        await this.remove(files.map((f) => `${prefix}/${f.name}`));
-        if (files.length < 1000) break;
       }
     },
   };

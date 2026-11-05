@@ -5,7 +5,7 @@ import type { Folder, FolderSummary, Memory } from "../lib/types";
 import { contentTypeFor, fileUrl, isSafeFileRef, shortId, storedName, type NewMemory, type StoredFile } from "./shared";
 
 /**
- * Local fallback persistence, used when Supabase isn't configured: one JSON
+ * Local fallback persistence, used when Cloudflare isn't configured: one JSON
  * file for records plus a folder of uploaded files, both under `.data/`.
  * Data lives only on this machine.
  */

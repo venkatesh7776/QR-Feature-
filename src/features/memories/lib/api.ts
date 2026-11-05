@@ -65,7 +65,7 @@ export interface DraftMemory {
 /**
  * Two steps: ask the server how to upload, then either send everything as one
  * multipart request (local backend) or upload each file straight to storage
- * and post only the metadata (Supabase; avoids serverless body-size limits).
+ * and post only the metadata (Cloudflare R2; avoids serverless body-size limits).
  */
 export async function submitMemories(
   folderId: string,

@@ -26,7 +26,7 @@ async function hmac(key: string, message: string) {
  * so changing the passcode signs everyone out, and the cookie can't be forged.
  */
 export function sessionToken() {
-  const secret = process.env.SESSION_SECRET ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "wedding-memories";
+  const secret = process.env.SESSION_SECRET ?? process.env.R2_SECRET_ACCESS_KEY ?? "wedding-memories";
   return hmac(`${secret}:${process.env.COUPLE_PASSCODE ?? ""}`, "wedding-memories-couple");
 }
 
